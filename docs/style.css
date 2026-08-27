@@ -40,8 +40,8 @@
 
   --gap:16px;                /* 모든 영역 좌우 마진 */
   --navh:64px;              /* 캡슐 내비 높이 */
-  --navlift:10px;           /* 바닥에서 띄운 만큼 */
-  --navclear:calc(var(--navh) + var(--navlift) + 16px + var(--safe-b));
+  --navlift:10px;           /* 홈 인디케이터가 없는 기기에서 띄울 만큼 */
+  --navclear:calc(var(--navh) + max(var(--navlift), var(--safe-b)) + 12px);
   --tabh:56px;
   --safe-t:env(safe-area-inset-top);
   --safe-b:env(safe-area-inset-bottom);
@@ -226,7 +226,7 @@ main{position:relative;min-height:0;overflow:hidden}
 /* ── 해설 / 지나온 길 ──────────────────────────────────── */
 .sheetview{grid-template-rows:auto minmax(0,1fr);background:transparent}
 .scroller,.transcript{overflow-y:auto;-webkit-overflow-scrolling:touch;
-  padding:4px var(--gap) calc(var(--navclear) + 24px)}
+  padding:4px var(--gap) calc(var(--navclear) + 8px)}
 .transcript .sent{
   display:block;width:100%;text-align:left;
   font-size:var(--fs-lg);font-weight:600;line-height:var(--lh-loose);
@@ -256,7 +256,7 @@ main{position:relative;min-height:0;overflow:hidden}
 .mini{
   position:fixed;left:50%;transform:translateX(-50%);
   width:calc(100% - var(--gap)*2);max-width:var(--maxw);z-index:8;
-  bottom:calc(var(--navh) + var(--navlift) + 10px + var(--safe-b));
+  bottom:calc(var(--navh) + max(var(--navlift), var(--safe-b)) + 8px);
   display:grid;grid-template-columns:40px 1fr 40px;align-items:center;gap:11px;
   padding:8px 10px;border-radius:14px;overflow:hidden;
   background:var(--surface2);
@@ -291,7 +291,7 @@ main{position:relative;min-height:0;overflow:hidden}
 /* ── 플로팅 캡슐 내비 ─────────────────────────────────── */
 .tabbar{
   position:fixed;left:50%;transform:translateX(-50%);
-  bottom:calc(var(--navlift) + var(--safe-b));z-index:14;
+  bottom:max(var(--navlift), var(--safe-b));z-index:14;
   display:grid;grid-template-columns:repeat(5,1fr);
   width:calc(100% - var(--gap)*2);max-width:var(--maxw);
   background:rgba(255,255,255,.92);backdrop-filter:blur(18px) saturate(1.6);
@@ -312,35 +312,8 @@ main{position:relative;min-height:0;overflow:hidden}
 .tab:active{transform:scale(.96)}
 
 /* ── 설정 시트 ─────────────────────────────────────────── */
-.fullsheet{position:fixed;inset:0;z-index:30;background:#FFF;
-  display:flex;justify-content:center;animation:fade var(--dur) var(--gentle)}
-@keyframes fade{from{opacity:0}to{opacity:1}}
-.fullsheet.closing{animation:fadeout .22s ease forwards}
-@keyframes fadeout{to{opacity:0}}
-
-.fullsheet-inner{
-  width:100%;max-width:var(--maxw);height:100dvh;
-  display:flex;flex-direction:column;
-  background:#FFF;color:var(--ink);
-  animation:up .34s var(--gentle);
-  overflow:hidden;
-}
-@keyframes up{from{transform:translateY(100%)}to{transform:none}}
-.fullsheet-inner.drag{animation:none;transition:none}
-.fullsheet-inner.snapback{transition:transform var(--dur) var(--gentle)}
-
-/* 헤더 고정 */
-.sheet-head{flex:none;background:#FFF;padding:calc(8px + var(--safe-t)) var(--gap) 0;
-  cursor:grab;touch-action:none}
-.grab{width:36px;height:4px;border-radius:4px;background:#E2E2E6;margin:0 auto}
-.sheet-title{display:flex;align-items:center;justify-content:space-between;
-  height:52px;margin-top:8px}
-.sheet-title strong{font-size:var(--fs-lg);font-weight:700}
-
-/* 본문만 스크롤 · 위 여백 24 · 좌우 16 */
-.sheet-body{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;
-  padding:24px var(--gap) calc(24px + var(--safe-b))}
-
+/* 설정도 다른 탭과 같은 화면이다 */
+#view-settings .field:first-of-type{margin-top:4px}
 .field{margin-bottom:24px}
 .field:last-of-type{margin-bottom:8px}
 .flabel{display:block;font-size:var(--fs-sm);font-weight:600;color:var(--dim);
@@ -353,9 +326,7 @@ main{position:relative;min-height:0;overflow:hidden}
   color:var(--dim);transition:background var(--dur) var(--gentle),color var(--dur) var(--gentle)}
 .seg button.on{background:#FFF;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.09)}
 
-/* 아코디언 */
-.acc-head{display:flex;align-items:center;justify-content:space-between;width:100%;
-  padding:2px 0}
+.acc-head{display:flex;align-items:center;justify-content:space-between;width:100%;padding:2px 0}
 .acc-head .flabel{margin-bottom:0}
 .acc-right{display:flex;align-items:center;gap:4px}
 .acc-right b{font-size:var(--fs-sm);font-weight:600;color:var(--ink)}
@@ -481,12 +452,13 @@ input[type=range]:disabled{opacity:.4}
    화면 밖으로 넘치고, 세로로도 늘어난다. */
 .view.scroller{display:block;align-content:start}
 .scroller{overflow-y:auto;-webkit-overflow-scrolling:touch;
-  padding:calc(var(--safe-t) + 12px) var(--gap) calc(var(--navclear) + 24px)}
+  padding:calc(var(--safe-t) + 8px) var(--gap) calc(var(--navclear) + 8px)}
 .pagehead{padding:12px 0 20px}
 .pagehead h1{font-size:var(--fs-xl);font-weight:700;line-height:var(--lh-tight)}
 .pagehead p{margin-top:6px;font-size:var(--fs-sm);color:var(--dim)}
 
 .shelf{margin-bottom:28px}
+.shelf:last-child{margin-bottom:0}
 .shelf h2{font-size:var(--fs-md);font-weight:700;margin-bottom:12px}
 
 /* 빅 배너 */
@@ -542,7 +514,7 @@ input[type=range]:disabled{opacity:.4}
 #view-search{display:grid;grid-template-rows:minmax(0,1fr)}
 .searchbar{
   position:fixed;left:50%;transform:translateX(-50%);
-  bottom:calc(var(--navh) + var(--navlift) + 10px + var(--safe-b));z-index:13;
+  bottom:calc(var(--navh) + max(var(--navlift), var(--safe-b)) + 8px);z-index:13;
   width:calc(100% - var(--gap)*2);max-width:var(--maxw);
   display:grid;grid-template-columns:36px 1fr 36px;align-items:center;gap:6px;
   padding:6px;border-radius:999px;

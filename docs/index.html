@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1,user-scalable=no">
 <meta name="theme-color" content="#007BFF">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>여행 도슨트</title>
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
 <link rel="preconnect" href="https://upload.wikimedia.org">
@@ -165,57 +165,13 @@
     <button id="clearLog" class="textlink">기록 지우기</button>
   </section>
 
-</main>
+  <!-- ══════════ 설정 ══════════ -->
+  <section class="view scroller hidden" id="view-settings">
+    <header class="pagehead">
+      <h1>설정</h1>
+      <p>목소리와 해설 방식을 고를 수 있어요</p>
+    </header>
 
-<!-- ══════════ 미니 플레이어 ══════════ -->
-<div class="mini hidden" id="mini">
-  <div class="mini-bar"><i id="miniFill"></i></div>
-  <div class="mini-art"><img id="miniImg" alt="" hidden><div class="eq" id="miniEq" hidden><i></i><i></i><i></i></div></div>
-  <div class="mini-meta">
-    <div class="mini-title" id="miniTitle">여행 도슨트</div>
-    <div class="mini-sub" id="miniSub">재생할 곳을 찾는 중</div>
-  </div>
-  <button id="miniPlay" class="ico" aria-label="재생"></button>
-</div>
-
-<!-- ══════════ 플로팅 캡슐 내비 ══════════ -->
-<nav class="tabbar">
-  <button class="tab" data-view="home">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 10.6 12 4l8 6.6V19a1.4 1.4 0 0 1-1.4 1.4h-3.2v-5.2H8.6v5.2H5.4A1.4 1.4 0 0 1 4 19v-8.4Z"/></svg>
-    <span>홈</span>
-  </button>
-  <button class="tab" data-view="search">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="6.4"/><path d="m15.8 15.8 4.2 4.2"/></svg>
-    <span>검색</span>
-  </button>
-  <button class="tab on" data-view="player">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8.4"/><path d="M10.4 9.2c0-.5.55-.8.96-.54l4.1 2.6c.38.24.38.8 0 1.04l-4.1 2.6c-.41.26-.96-.04-.96-.54V9.2Z" fill="currentColor" stroke="none"/></svg>
-    <span>플레이어</span>
-  </button>
-  <button class="tab" data-view="history">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8.4"/><path d="M12 7.4V12l3.2 1.9"/></svg>
-    <span>히스토리</span>
-  </button>
-  <button class="tab" data-view="settings">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.2 14.6a1.5 1.5 0 0 0 .3 1.65l.05.05a2 2 0 1 1-2.83 2.83l-.05-.05a1.5 1.5 0 0 0-2.55 1.06V20a2 2 0 1 1-4 0v-.08a1.5 1.5 0 0 0-2.6-1.02l-.05.05A2 2 0 1 1 4.65 16.1l.05-.05A1.5 1.5 0 0 0 3.64 13.5H3.5a2 2 0 1 1 0-4h.08A1.5 1.5 0 0 0 4.6 6.95l-.05-.05A2 2 0 1 1 7.38 4.07l.05.05a1.5 1.5 0 0 0 1.65.3h.08a1.5 1.5 0 0 0 .9-1.37V3a2 2 0 1 1 4 0v.08a1.5 1.5 0 0 0 2.55 1.06l.05-.05a2 2 0 1 1 2.83 2.83l-.05.05a1.5 1.5 0 0 0-.3 1.65v.08a1.5 1.5 0 0 0 1.37.9h.14a2 2 0 1 1 0 4h-.08a1.5 1.5 0 0 0-1.37.9Z"/></svg>
-    <span>설정</span>
-  </button>
-</nav>
-
-<!-- ══════════ 설정 — 풀 팝업 ══════════ -->
-<div id="settings" class="fullsheet hidden">
-  <div class="fullsheet-inner" id="sheetInner">
-    <div class="sheet-head" id="sheetHead">
-      <div class="grab"></div>
-      <div class="sheet-title">
-        <strong>설정</strong>
-        <button id="closeSettings" class="ico" aria-label="닫기">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="m6 6 12 12M18 6 6 18"/></svg>
-        </button>
-      </div>
-    </div>
-
-    <div class="sheet-body">
       <div class="field">
         <button class="acc-head" id="keyAccHead" aria-expanded="false">
           <span class="flabel">AI 키 <em>넣으면 이야기꾼 말투로 바뀌어요</em></span>
@@ -303,9 +259,44 @@
       </div>
 
       <p class="note" id="diag"></p>
-    </div>
+      </section>
+
+</main>
+
+<!-- ══════════ 미니 플레이어 ══════════ -->
+<div class="mini hidden" id="mini">
+  <div class="mini-bar"><i id="miniFill"></i></div>
+  <div class="mini-art"><img id="miniImg" alt="" hidden><div class="eq" id="miniEq" hidden><i></i><i></i><i></i></div></div>
+  <div class="mini-meta">
+    <div class="mini-title" id="miniTitle">여행 도슨트</div>
+    <div class="mini-sub" id="miniSub">재생할 곳을 찾는 중</div>
   </div>
+  <button id="miniPlay" class="ico" aria-label="재생"></button>
 </div>
+
+<!-- ══════════ 플로팅 캡슐 내비 ══════════ -->
+<nav class="tabbar">
+  <button class="tab" data-view="home">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 10.6 12 4l8 6.6V19a1.4 1.4 0 0 1-1.4 1.4h-3.2v-5.2H8.6v5.2H5.4A1.4 1.4 0 0 1 4 19v-8.4Z"/></svg>
+    <span>홈</span>
+  </button>
+  <button class="tab" data-view="search">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="6.4"/><path d="m15.8 15.8 4.2 4.2"/></svg>
+    <span>검색</span>
+  </button>
+  <button class="tab on" data-view="player">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8.4"/><path d="M10.4 9.2c0-.5.55-.8.96-.54l4.1 2.6c.38.24.38.8 0 1.04l-4.1 2.6c-.41.26-.96-.04-.96-.54V9.2Z" fill="currentColor" stroke="none"/></svg>
+    <span>플레이어</span>
+  </button>
+  <button class="tab" data-view="history">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8.4"/><path d="M12 7.4V12l3.2 1.9"/></svg>
+    <span>히스토리</span>
+  </button>
+  <button class="tab" data-view="settings">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.2 14.6a1.5 1.5 0 0 0 .3 1.65l.05.05a2 2 0 1 1-2.83 2.83l-.05-.05a1.5 1.5 0 0 0-2.55 1.06V20a2 2 0 1 1-4 0v-.08a1.5 1.5 0 0 0-2.6-1.02l-.05.05A2 2 0 1 1 4.65 16.1l.05-.05A1.5 1.5 0 0 0 3.64 13.5H3.5a2 2 0 1 1 0-4h.08A1.5 1.5 0 0 0 4.6 6.95l-.05-.05A2 2 0 1 1 7.38 4.07l.05.05a1.5 1.5 0 0 0 1.65.3h.08a1.5 1.5 0 0 0 .9-1.37V3a2 2 0 1 1 4 0v.08a1.5 1.5 0 0 0 2.55 1.06l.05-.05a2 2 0 1 1 2.83 2.83l-.05.05a1.5 1.5 0 0 0-.3 1.65v.08a1.5 1.5 0 0 0 1.37.9h.14a2 2 0 1 1 0 4h-.08a1.5 1.5 0 0 0-1.37.9Z"/></svg>
+    <span>설정</span>
+  </button>
+</nav>
 
 <script type="module" src="./app.js"></script>
 </body>

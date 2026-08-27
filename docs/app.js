@@ -43,7 +43,6 @@ const els = {
   diag: $('diag'),
   keyAccHead: $('keyAccHead'), keyAccBody: $('keyAccBody'), keyState: $('keyState'),
   geminiKey: $('geminiKey'), pexelsKey: $('pexelsKey'), saveKeys: $('saveKeys'),
-  sheetInner: $('sheetInner'), sheetHead: $('sheetHead'),
   accHead: $('voiceAccHead'), accBody: $('voiceAccBody'), voiceNow: $('voiceNow'),
 };
 
@@ -884,10 +883,9 @@ els.searchForm.onsubmit = e => {
 
 /* ── 화면 전환 ────────────────────────────────────────────
    홈 · 검색 · 플레이어 · 히스토리 · 설정 */
-const VIEWS = ['home', 'search', 'player', 'history'];
+const VIEWS = ['home', 'search', 'player', 'history', 'settings'];
 
 function goto(view) {
-  if (view === 'settings') { openSheet(); return; }
   state.view = view;
   VIEWS.forEach(v => $('view-' + v).classList.toggle('hidden', v !== view));
   document.querySelectorAll('.tab').forEach(t =>
@@ -974,58 +972,6 @@ els.track.onpointerdown = e => {
 };
 
 /* ── 설정 ────────────────────────────────────────────────── */
-/* ── 설정 시트 열고 닫기 ─────────────────────────────────── */
-function openSheet() {
-  state.beforeSettings = state.view;
-  document.querySelectorAll('.tab').forEach(t =>
-    t.classList.toggle('on', t.dataset.view === 'settings'));
-  els.settings.classList.remove('hidden', 'closing');
-  els.sheetInner.style.transform = '';
-}
-function closeSheet() {
-  els.settings.classList.add('closing');
-  els.sheetInner.style.transition = 'transform .22s ease';
-  els.sheetInner.style.transform = 'translateY(100%)';
-  setTimeout(() => {
-    els.settings.classList.add('hidden');
-    els.settings.classList.remove('closing');
-    els.sheetInner.style.transition = '';
-    els.sheetInner.style.transform = '';
-    goto(state.beforeSettings || 'player');
-  }, 220);
-}
-$('closeSettings').onclick = closeSheet;
-
-
-/* 손잡이를 쓸어내리면 닫힌다 */
-(() => {
-  let y0 = 0, dy = 0, dragging = false;
-  const start = e => {
-    dragging = true; dy = 0;
-    y0 = (e.touches ? e.touches[0].clientY : e.clientY);
-    els.sheetInner.classList.add('drag');
-  };
-  const move = e => {
-    if (!dragging) return;
-    const y = (e.touches ? e.touches[0].clientY : e.clientY);
-    dy = Math.max(0, y - y0);
-    els.sheetInner.style.transform = `translateY(${dy}px)`;
-  };
-  const end = () => {
-    if (!dragging) return;
-    dragging = false;
-    els.sheetInner.classList.remove('drag');
-    if (dy > 110) { closeSheet(); return; }
-    els.sheetInner.classList.add('snapback');
-    els.sheetInner.style.transform = '';
-    setTimeout(() => els.sheetInner.classList.remove('snapback'), 320);
-  };
-  els.sheetHead.addEventListener('pointerdown', start);
-  window.addEventListener('pointermove', move);
-  window.addEventListener('pointerup', end);
-  window.addEventListener('pointercancel', end);
-})();
-
 /* 음성 선택 아코디언 */
 els.accHead.onclick = () => {
   const open = els.accHead.getAttribute('aria-expanded') === 'true';
