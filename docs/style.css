@@ -5,7 +5,7 @@
 :root{
   /* 바탕 — 흰색 그라데이션 */
   --ui:#FFFFFF;
-  --bg-top:#F3F8FF;          /* 위쪽에 아주 옅은 파랑 */
+  --bg-top:#FFFFFF;
   --ink:#141414;
   --dim:#5E5E62;
   --dim2:#96969C;
@@ -65,7 +65,7 @@ body{
   -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
   display:grid; grid-template-rows:minmax(0,1fr) auto;
   height:100dvh;
-  background:linear-gradient(to bottom,var(--bg-top) 0%,var(--ui) 38%,var(--ui) 100%);
+  background:var(--ui);      /* 전체 흰색 */
 }
 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;
   transition:transform var(--dur) var(--gentle),opacity var(--dur) var(--gentle),
