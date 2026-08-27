@@ -52,33 +52,28 @@
   </section>
 
   <!-- ══════════ 검색 ══════════ -->
-  <section class="view hidden" id="view-search">
-    <div class="scroller" id="searchScroll">
-      <header class="pagehead">
-        <h1>검색</h1>
-        <p>가고 싶은 곳을 적으면 그 자리의 이야기를 들려드려요</p>
-      </header>
-
-      <section class="shelf hidden" id="nearShelf">
-        <h2>가까운 도슨트</h2>
-        <div class="cards" id="nearList"></div>
-      </section>
-
-      <section class="shelf">
-        <h2>추천 도슨트</h2>
-        <div class="cards" id="sugList"></div>
-      </section>
-    </div>
+  <section class="view scroller hidden" id="view-search">
+    <header class="pagehead">
+      <h1>검색</h1>
+      <p>가고 싶은 곳을 적으면 그 자리의 이야기를 들려드려요</p>
+    </header>
 
     <form class="searchbar" id="searchForm">
-      <span class="ico" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
-      </span>
       <input type="search" id="searchInput" placeholder="예: 경주 불국사" autocomplete="off" enterkeyhint="go">
       <button type="submit" class="ico" id="searchGo" aria-label="이 장소 안내받기">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M5 12h13M13 6.5 18.5 12 13 17.5"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="11" cy="11" r="6.4"/><path d="m15.8 15.8 4.2 4.2"/></svg>
       </button>
     </form>
+
+    <section class="shelf hidden" id="nearShelf">
+      <h2>가까운 도슨트</h2>
+      <div class="cards" id="nearList"></div>
+    </section>
+
+    <section class="shelf">
+      <h2>추천 도슨트</h2>
+      <div class="cards" id="sugList"></div>
+    </section>
   </section>
 
   <!-- ══════════ 플레이어 ══════════ -->

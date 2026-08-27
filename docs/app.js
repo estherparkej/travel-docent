@@ -892,7 +892,7 @@ function goto(view) {
     t.classList.toggle('on', t.dataset.view === view));
   els.mini.classList.toggle('hidden', view === 'player' || !P.lines.length);
   if (view === 'home') renderHome();
-  if (view === 'search') { renderSearch(); setTimeout(() => els.searchInput.focus(), 250); }
+  if (view === 'search') renderSearch();
   if (view === 'player') closeScript();
 }
 document.querySelectorAll('.tab').forEach(b => b.onclick = () => goto(b.dataset.view));
