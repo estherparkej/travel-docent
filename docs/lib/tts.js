@@ -5,16 +5,43 @@ import { getKey } from './keys.js';
 
 const MODELS = ['gemini-3.1-flash-tts-preview', 'gemini-2.5-flash-preview-tts'];
 
+/* 구글이 제공하는 30개 전부.
+   구글은 성별을 공식 표기하지 않고 '성격'만 밝힌다. 그래서 그 성격을
+   우리말로 옮겨 두고, 직접 들어보고 고르시게 했다.
+   낮고 묵직한 쪽(중후한·자갈 같은·묵직한)이 대체로 남성처럼 들린다. */
 export const VOICES = [
-  { id: 'sulafat',      label: '따뜻한 목소리',   desc: '포근하게 감싸는 톤. 기본값' },
-  { id: 'vindemiatrix', label: '다정한 목소리',   desc: '옆에서 조곤조곤 이야기하듯' },
-  { id: 'achernar',     label: '부드러운 목소리', desc: '낮고 나긋한 톤' },
-  { id: 'aoede',        label: '산뜻한 목소리',   desc: '가볍고 시원한 톤' },
-  { id: 'leda',         label: '밝은 목소리',     desc: '젊고 생기 있는 톤. 아이와 함께' },
-  { id: 'kore',         label: '또렷한 목소리',   desc: '단단하고 분명한 발음' },
-  { id: 'charon',       label: '설명하는 목소리', desc: '다큐멘터리 내레이션 같은 톤' },
-  { id: 'gacrux',       label: '중후한 목소리',   desc: '묵직하고 원숙한 톤' },
+  { id: 'sulafat',      label: '따뜻한 목소리',     desc: '포근하게 감싸는 톤' },
+  { id: 'charon',       label: '설명하는 목소리',   desc: '다큐멘터리 내레이션 같은 톤' },
+  { id: 'gacrux',       label: '중후한 목소리',     desc: '원숙하고 묵직한 톤' },
+  { id: 'algenib',      label: '자갈 같은 목소리',  desc: '거칠고 낮은 톤' },
+  { id: 'alnilam',      label: '단단한 목소리',     desc: '흔들림 없는 톤' },
+  { id: 'orus',         label: '굳건한 목소리',     desc: '분명하고 단단한 톤' },
+  { id: 'rasalgethi',   label: '알려주는 목소리',   desc: '차분한 설명조' },
+  { id: 'schedar',      label: '고른 목소리',       desc: '기복 없이 평탄한 톤' },
+  { id: 'iapetus',      label: '맑은 목소리',       desc: '또렷하고 깨끗한 톤' },
+  { id: 'algieba',      label: '매끄러운 목소리',   desc: '부드럽게 이어지는 톤' },
+  { id: 'umbriel',      label: '느긋한 목소리',     desc: '서두르지 않는 톤' },
+  { id: 'enceladus',    label: '숨결 섞인 목소리',  desc: '바람 소리가 도는 톤' },
+  { id: 'zubenelgenubi',label: '편안한 목소리',     desc: '동네 친구 같은 톤' },
+  { id: 'achird',       label: '다정한 친구 목소리',desc: '친근하고 편한 톤' },
+  { id: 'sadaltager',   label: '박식한 목소리',     desc: '아는 사람이 알려주듯' },
+  { id: 'puck',         label: '들뜬 목소리',       desc: '기분 좋게 통통 튀는 톤' },
+  { id: 'fenrir',       label: '신난 목소리',       desc: '흥이 오른 톤' },
+  { id: 'vindemiatrix', label: '다정한 목소리',     desc: '옆에서 조곤조곤 이야기하듯' },
+  { id: 'achernar',     label: '부드러운 목소리',   desc: '낮고 나긋한 톤' },
+  { id: 'aoede',        label: '산뜻한 목소리',     desc: '가볍고 시원한 톤' },
+  { id: 'leda',         label: '밝은 목소리',       desc: '젊고 생기 있는 톤' },
+  { id: 'kore',         label: '또렷한 목소리',     desc: '단단하고 분명한 발음' },
+  { id: 'zephyr',       label: '환한 목소리',       desc: '맑고 밝은 톤' },
+  { id: 'autonoe',      label: '해맑은 목소리',     desc: '밝고 가벼운 톤' },
+  { id: 'callirrhoe',   label: '수월한 목소리',     desc: '힘 빼고 편안한 톤' },
+  { id: 'despina',      label: '고운 목소리',       desc: '매끄럽고 정갈한 톤' },
+  { id: 'erinome',      label: '또박한 목소리',     desc: '발음이 선명한 톤' },
+  { id: 'laomedeia',    label: '경쾌한 목소리',     desc: '가볍게 튀는 톤' },
+  { id: 'pulcherrima',  label: '앞서가는 목소리',   desc: '적극적이고 또렷한 톤' },
+  { id: 'sadachbia',    label: '생기 있는 목소리',  desc: '활기찬 톤' },
 ];
+
 const IDS = new Set(VOICES.map(v => v.id));
 
 const STYLES = {
@@ -51,7 +78,7 @@ function b64ToBytes(b64) {
 // 요청을 한 줄로 세우고 최소 간격을 둔다
 let gate = Promise.resolve();
 let lastAt = 0;
-const MIN_GAP = 1100;
+const MIN_GAP = 600;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 async function paced(fn) {
