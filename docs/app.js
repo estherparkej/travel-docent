@@ -2,6 +2,7 @@ import * as wiki from './lib/wiki.js';
 import * as llm from './lib/llm.js';
 import * as tts from './lib/tts.js';
 import * as photos from './lib/photos.js';
+import { KR, WW, BANNERS } from './lib/places.js';
 import * as geo from './lib/geo.js';
 import { getKey, setKey, getKeys, provider } from './lib/keys.js';
 
@@ -27,8 +28,9 @@ const els = {
   tCur: $('tCur'), tDur: $('tDur'),
   peek: $('peek'), peekLine: $('peekLine'),
   transcript: $('transcript'), scriptPanel: $('scriptPanel'), scriptPlace: $('scriptPlace'),
-  banner: $('homeBanner'), bannerImg: $('bannerImg'), bannerTitle: $('bannerTitle'),
-  bannerDesc: $('bannerDesc'), recentShelf: $('recentShelf'), recentRow: $('recentRow'),
+  heroWrap: $('heroWrap'), heroTrack: $('heroTrack'), heroDots: $('heroDots'),
+  krChips: $('krChips'), krList: $('krList'),
+  wwChips: $('wwChips'), wwList: $('wwList'), toTop: $('toTop'),
   pickList: $('pickList'), nearShelf: $('nearShelf'), nearList: $('nearList'),
   sugList: $('sugList'), searchForm: $('searchForm'), searchInput: $('searchInput'),
   logList: $('logList'), logEmpty: $('logEmpty'),
@@ -36,11 +38,10 @@ const els = {
   miniSub: $('miniSub'), miniPlay: $('miniPlay'), miniFill: $('miniFill'),
   settings: $('settings'), lengthSeg: $('lengthSeg'), toneList: $('toneList'),
   voiceSel: $('voiceSel'), preview: $('previewVoice'), voiceHint: $('voiceHint'),
-  engineSeg: $('engineSeg'), engineNote: $('engineNote'),
+  engineSeg: $('engineSeg'),
   deviceField: $('deviceField'), googleField: $('googleField'), gvoiceList: $('gvoiceList'),
   rateSel: $('rateSel'), rateVal: $('rateVal'),
   pitchSel: $('pitchSel'), pitchVal: $('pitchVal'),
-  diag: $('diag'),
   keyAccHead: $('keyAccHead'), keyAccBody: $('keyAccBody'), keyState: $('keyState'),
   geminiKey: $('geminiKey'), pexelsKey: $('pexelsKey'), saveKeys: $('saveKeys'),
   accHead: $('voiceAccHead'), accBody: $('voiceAccBody'), voiceNow: $('voiceNow'),
@@ -151,32 +152,46 @@ function loadVoices() {
   const premium = best && /premium|enhanced|프리미엄|고급/i.test(best.name);
   const dropped = pool.length - usable.length;
   const net = usable.filter(v => !v.localService).length;
-  els.diag.textContent = !usable.length
-    ? '한국어 목소리를 찾지 못했어요. 기기 설정에서 한국어 음성을 먼저 추가해 주세요.'
-    : `이 기기의 한국어 음성 ${pool.length}개 중 ${usable.length}개를 씁니다`
-      + (dropped ? ` (장난감 음성 ${dropped}개 제외)` : '')
-      + `. 네트워크 음성 ${net}개.`
-      + (premium ? ' 프리미엄 음성이 적용됐어요.'
-                 : ' 프리미엄 음성을 받으면 훨씬 자연스러워집니다.');
   els.voiceHint.classList.toggle('hidden', !!premium);
 }
 loadVoices();
 speechSynthesis.onvoiceschanged = loadVoices;
 
+const ICO_PLAY_SM = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 5.6c0-.72.78-1.16 1.39-.78l8.2 5.18a.92.92 0 0 1 0 1.56l-8.2 5.2c-.61.38-1.39-.06-1.39-.78V5.6Z"/></svg>';
+const ICO_SPIN_SM = '<svg class="spin" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-opacity=".25" stroke-width="2.4"/><path d="M20 12a8 8 0 0 0-8-8" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>';
+const ICO_PAUSE_SM = '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="7.6" y="5.5" width="3.1" height="13" rx="1.4"/><rect x="13.3" y="5.5" width="3.1" height="13" rx="1.4"/></svg>';
+
 function renderTones() {
   els.toneList.innerHTML = Object.entries(TONES).map(([k, t]) => `
-    <button class="vcard${k === prefs.tone ? ' on' : ''}" data-v="${k}">
-      <span><b>${t.label}</b><em>${t.desc}</em></span>
-      <span class="vp">${ICO.play}</span>
-    </button>`).join('');
+    <div class="vrow${k === prefs.tone ? ' on' : ''}" data-v="${k}">
+      <span class="vtext"><b>${t.label}</b><em>${t.desc}</em></span>
+      <button class="vplay" data-v="${k}" aria-label="${t.label} 들어보기">${ICO_PLAY_SM}</button>
+    </div>`).join('');
 }
 
-// iOS/사파리는 사용자가 직접 누른 순간에만 음성을 열어준다
+function markToneRows() {
+  [...els.toneList.querySelectorAll('.vrow')].forEach(r =>
+    r.classList.toggle('on', r.dataset.v === prefs.tone));
+}
+
+/* iOS 는 사용자가 누른 그 순간에만 소리를 열어준다.
+   구글 목소리는 합성에 몇 초가 걸려서, 그때 새 Audio 를 만들면
+   이미 제스처가 끝난 뒤라 재생이 거부된다.
+   그래서 오디오 엘리먼트를 하나 만들어 두고 누른 순간에 풀어둔 뒤,
+   나중에는 src 만 갈아끼운다. */
+const SILENT = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YQAAAAA=';
+const audioEl = new Audio();
+audioEl.preload = 'auto';
+
 function unlockAudio() {
   if (state.unlocked) return;
   const u = new SpeechSynthesisUtterance(' ');
   u.volume = 0;
   speechSynthesis.speak(u);
+  try {
+    audioEl.src = SILENT;
+    audioEl.play().then(() => { audioEl.pause(); }).catch(() => {});
+  } catch (_) {}
   state.unlocked = true;
 }
 
@@ -262,20 +277,31 @@ async function playChunk(ci, startLine) {
   paint();
 
   let got;
+  const tick = setInterval(() => {
+    if (seq === P.seq && P.waiting)
+      els.status.textContent = ci ? '다음 대목을 준비하는 중' : '목소리를 만드는 중';
+  }, 1000);
   try {
-    got = await fetchAudio(chunk.text);
+    // 30초를 넘기면 기다리게 두지 않고 기기 목소리로 넘긴다
+    got = await Promise.race([
+      fetchAudio(chunk.text),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('SLOW')), 30000)),
+    ]);
   } catch (e) {
+    clearInterval(tick);
     P.waiting = false;
     if (seq !== P.seq) return;
     return googleFailed(e.message, from);
   }
+  clearInterval(tick);
   P.waiting = false;
   if (seq !== P.seq) return;
 
   chunk.dur = got.dur || chunk.chars / 5.4;
   spread(chunk);
 
-  const a = new Audio(got.url);
+  const a = audioEl;                    // 잠금이 풀린 그 엘리먼트를 재사용
+  a.src = got.url;
   a.playbackRate = +els.rateSel.value || 1;
   let queued = false;
   a.ontimeupdate = () => {
@@ -306,7 +332,11 @@ async function playChunk(ci, startLine) {
   P.speaking = true;
   P.idx = from;
   highlight();
-  a.play().catch(() => {});
+  a.play().catch(() => {
+    if (seq !== P.seq) return;
+    notify('소리를 열지 못했어요. 재생 버튼을 한 번 더 눌러 주세요.');
+    P.speaking = false; P.playing = false; paint();
+  });
   paint();
 }
 
@@ -314,7 +344,9 @@ async function playChunk(ci, startLine) {
 function googleFailed(msg, fromLine) {
   notify(msg === 'QUOTA'
     ? '구글 목소리 분당 한도에 걸렸어요. 기기 목소리로 이어 읽을게요.'
-    : '구글 목소리를 불러오지 못했어요. 기기 목소리로 이어 읽을게요.');
+    : msg === 'SLOW'
+      ? '구글 목소리가 너무 오래 걸려서 기기 목소리로 이어 읽을게요.'
+      : '구글 목소리를 불러오지 못했어요. 기기 목소리로 이어 읽을게요.');
   prefs.engine = 'device';
   savePrefs();
   applyEngine();
@@ -390,6 +422,10 @@ function killAudio() {
   if (P.audio) { P.audio.pause(); P.audio = null; }
   P.waiting = false;
 }
+
+/* 미리듣기용 — 본 재생과 섞이지 않게 따로 둔다 */
+const previewEl = new Audio();
+let previewOf = '';
 
 function stopAll() {
   P.playing = false; P.paused = false; P.speaking = false; P.ended = false;
@@ -817,43 +853,128 @@ function playPlace(name) {
   narrate();
 }
 
-let homeReady = false;
-function renderHome() {
-  if (homeReady) { renderRecent(); return; }
-  homeReady = true;
+/* ── 배너 캐러셀 ──────────────────────────────────────────
+   8장을 국내·해외 번갈아. 3초에 걸쳐 부드럽게 넘어가고,
+   손을 대면 멈췄다가 손을 떼면 다시 돈다. */
+const SLIDE_MS = 3000;      // 넘어가는 데 걸리는 시간
+const HOLD_MS = 3500;       // 머무는 시간
+const hero = { i: 0, timer: null, w: 0, dragging: false, x0: 0, dx: 0 };
 
-  const hour = new Date().getHours();
-  $('homeGreet').textContent = hour < 11 ? '오늘 아침엔 어디를 걸어볼까요'
-    : hour < 18 ? '오늘은 어디를 걸어볼까요' : '오늘 저녁엔 어디를 걸어볼까요';
-  $('pickTitle').textContent = `${MONTH}월의 추천 도슨트`;
-
-  // 배너는 날마다 바뀐다
-  const seed = new Date().getDate() % PICKS.length;
-  const top = PICKS[seed];
-  els.bannerTitle.textContent = top;
-  els.banner.onclick = () => playPlace(top);
-  preview(top).then(d => {
-    if (d.image) { els.bannerImg.src = d.image; els.bannerImg.hidden = false; }
-    els.bannerDesc.textContent = d.summary || '지금 이 자리의 이야기를 들려드려요';
-  });
-
-  fillCards(els.pickList, PICKS.filter(p => p !== top).slice(0, 6));
-  renderRecent();
+async function bannerImage(b) {
+  const shots = await photos.pexels(b.query, 1);
+  if (shots.length) return { url: shots[0].url, credit: shots[0].credit };
+  const d = await preview(b.place);          // Pexels 키가 없으면 위키 사진으로
+  return { url: d.image, credit: '위키백과' };
 }
 
-function renderRecent() {
-  const list = state.heard.slice().reverse().slice(0, 8);
-  els.recentShelf.classList.toggle('hidden', !list.length);
-  els.recentRow.innerHTML = list.map(p =>
-    `<button class="chip" data-place="${p}"><img alt="" hidden><span>${p}</span></button>`).join('');
-  [...els.recentRow.children].forEach(btn => {
-    const name = btn.dataset.place;
-    btn.onclick = () => playPlace(name);
-    preview(name).then(d => {
-      const img = btn.querySelector('img');
-      if (d.image) { img.src = d.image; img.hidden = false; }
-    });
+function buildHero() {
+  const slides = BANNERS.concat([BANNERS[0]]);   // 끝에 첫 장을 덧붙여 이어지게
+  els.heroTrack.innerHTML = slides.map((b, i) => `
+    <div class="hslide" data-place="${b.place}">
+      <img alt="" loading="${i < 2 ? 'eager' : 'lazy'}">
+      <span class="hveil"></span>
+      <span class="htxt"><span class="htag">${b.tag}</span><strong>${b.place}</strong></span>
+    </div>`).join('');
+  els.heroDots.innerHTML = BANNERS.map((_, i) =>
+    `<i class="${i ? '' : 'on'}"></i>`).join('');
+
+  [...els.heroTrack.children].forEach((el, i) => {
+    el.onclick = () => { if (Math.abs(hero.dx) < 8) playPlace(el.dataset.place); };
+    bannerImage(BANNERS[i % BANNERS.length]).then(d => {
+      if (d.url) el.querySelector('img').src = d.url;
+    }).catch(() => {});
   });
+
+  measureHero();
+  place(0, false);
+  startHero();
+}
+
+const measureHero = () => { hero.w = els.heroWrap.clientWidth; };
+addEventListener('resize', () => { measureHero(); place(hero.i, false); });
+
+function place(i, animate = true) {
+  hero.i = i;
+  els.heroTrack.style.transition = animate ? `transform ${SLIDE_MS}ms cubic-bezier(.4,0,.2,1)` : 'none';
+  els.heroTrack.style.transform = `translate3d(${-i * hero.w}px,0,0)`;
+  const real = i % BANNERS.length;
+  [...els.heroDots.children].forEach((d, k) => d.classList.toggle('on', k === real));
+  [...els.heroTrack.children].forEach((el, k) => el.classList.toggle('on', k === i));
+}
+
+function nextHero() {
+  place(hero.i + 1);
+  if (hero.i >= BANNERS.length) {              // 덧붙인 장에 닿으면 조용히 처음으로
+    setTimeout(() => place(0, false), SLIDE_MS + 40);
+  }
+}
+function startHero() {
+  clearInterval(hero.timer);
+  hero.timer = setInterval(nextHero, SLIDE_MS + HOLD_MS);
+}
+const stopHero = () => clearInterval(hero.timer);
+
+/* 손으로 넘기기 */
+function heroDrag() {
+  const wrap = els.heroWrap;
+  wrap.addEventListener('pointerdown', e => {
+    hero.dragging = true; hero.x0 = e.clientX; hero.dx = 0;
+    stopHero();
+    els.heroTrack.style.transition = 'none';
+  });
+  wrap.addEventListener('pointermove', e => {
+    if (!hero.dragging) return;
+    hero.dx = e.clientX - hero.x0;
+    els.heroTrack.style.transform = `translate3d(${-hero.i * hero.w + hero.dx}px,0,0)`;
+  });
+  const end = () => {
+    if (!hero.dragging) return;
+    hero.dragging = false;
+    let i = hero.i;
+    if (hero.dx < -50) i++;
+    else if (hero.dx > 50) i--;
+    if (i < 0) { place(BANNERS.length, false); i = BANNERS.length - 1; }
+    place(i);
+    if (i >= BANNERS.length) setTimeout(() => place(0, false), SLIDE_MS + 40);
+    setTimeout(startHero, 800);
+  };
+  wrap.addEventListener('pointerup', end);
+  wrap.addEventListener('pointercancel', end);
+  wrap.addEventListener('pointerleave', end);
+}
+
+/* ── 지역 랜드마크 ───────────────────────────────────────── */
+function buildRegion(data, chipHost, listHost) {
+  const keys = Object.keys(data);
+  chipHost.innerHTML = keys.map((k, i) =>
+    `<button class="rchip${i ? '' : ' on'}" data-k="${k}">${k}</button>`).join('');
+  const show = k => {
+    [...chipHost.children].forEach(c => c.classList.toggle('on', c.dataset.k === k));
+    fillCards(listHost, data[k].slice(0, 5));
+  };
+  chipHost.onclick = e => {
+    const c = e.target.closest('.rchip');
+    if (!c) return;
+    show(c.dataset.k);
+    c.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+  };
+  show(keys[0]);
+}
+
+let homeReady = false;
+function renderHome() {
+  if (homeReady) return;
+  homeReady = true;
+
+  
+  buildHero();
+  heroDrag();
+  fillCards(els.pickList, PICKS.slice(0, 5));
+  buildRegion(KR, els.krChips, els.krList);
+  buildRegion(WW, els.wwChips, els.wwList);
+
+  els.toTop.onclick = () =>
+    $('view-home').scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 let searchReady = false;
@@ -1004,9 +1125,6 @@ async function previewGoogle() {
     a.playbackRate = +els.rateSel.value || 1;
     a.play().catch(() => {});
   } catch (e) {
-    els.diag.textContent = e.message === 'QUOTA'
-      ? '구글 목소리 분당 한도에 걸렸어요. 20초쯤 뒤에 다시 눌러 주세요.'
-      : '구글 목소리를 불러오지 못했어요. ' + e.message;
   }
   paint();
 }
@@ -1028,12 +1146,72 @@ function previewVoice() {
 els.preview.onclick = previewVoice;
 
 /* ── 목소리 종류 전환 ────────────────────────────────────── */
+function openKeyBox() {
+  els.keyAccHead.setAttribute('aria-expanded', 'true');
+  els.keyAccBody.classList.remove('hidden');
+  const k = getKeys();
+  els.geminiKey.value = k.gemini || '';
+  els.pexelsKey.value = k.pexels || '';
+  els.keyAccHead.scrollIntoView({ block: 'center', behavior: 'smooth' });
+}
+
 function renderGVoices() {
+  if (!gvoices.length) {
+    els.gvoiceList.innerHTML =
+      '<p class="empty">AI 키를 넣으면 여덟 가지 구글 목소리를 고를 수 있어요.</p>';
+    return;
+  }
   els.gvoiceList.innerHTML = gvoices.map(v => `
-    <button class="vcard${v.id === prefs.gvoice ? ' on' : ''}" data-v="${v.id}">
-      <span><b>${v.label}</b><em>${v.desc}</em></span>
-      <span class="vp">${ICO.play}</span>
-    </button>`).join('');
+    <div class="vrow${v.id === prefs.gvoice ? ' on' : ''}" data-v="${v.id}">
+      <span class="vtext"><b>${v.label}</b><em>${v.desc}</em></span>
+      <button class="vplay" data-v="${v.id}" aria-label="${v.label} 들어보기">${ICO_PLAY_SM}</button>
+    </div>`).join('');
+}
+
+/* 목록에서 미리듣기 — 누르면 재생, 다시 누르면 멈춤 */
+let previewLoading = '';
+
+function markVoiceButtons() {
+  [...els.gvoiceList.querySelectorAll('.vplay')].forEach(b => {
+    const id = b.dataset.v;
+    const loading = id === previewLoading;
+    const playing = !loading && id === previewOf && !previewEl.paused;
+    b.innerHTML = loading ? ICO_SPIN_SM : playing ? ICO_PAUSE_SM : ICO_PLAY_SM;
+    b.classList.toggle('playing', playing || loading);
+  });
+  [...els.gvoiceList.querySelectorAll('.vrow')].forEach(r =>
+    r.classList.toggle('on', r.dataset.v === prefs.gvoice));
+}
+
+function stopPreview() {
+  previewEl.pause();
+  previewOf = ''; previewLoading = '';
+  markVoiceButtons();
+}
+
+async function playVoiceSample(id) {
+  if (previewOf === id && !previewEl.paused) { stopPreview(); return; }
+  stopPreview();
+  unlockAudio();
+
+  prefs.gvoice = id;              // 들어본 목소리를 그대로 고른 것으로 본다
+  savePrefs();
+  previewOf = id;
+  previewLoading = id;            // 만드는 동안 스피너
+  markVoiceButtons();
+
+  try {
+    const got = await tts.synth(SAMPLE, id, prefs.tone);
+    previewLoading = '';
+    if (previewOf !== id) { markVoiceButtons(); return; }
+    previewEl.src = got.url;
+    previewEl.playbackRate = +els.rateSel.value || 1;
+    previewEl.onended = stopPreview;
+    await previewEl.play();
+  } catch (e) {
+    previewOf = ''; previewLoading = '';
+  }
+  markVoiceButtons();
 }
 
 function applyEngine() {
@@ -1043,31 +1221,23 @@ function applyEngine() {
   els.googleField.classList.toggle('hidden', !g);
   els.pitchSel.parentElement.style.opacity = g ? .35 : 1;
   els.pitchSel.disabled = g;
-  els.engineNote.textContent = g
-    ? '구글 신경망 음성이라 사람 목소리에 훨씬 가깝습니다. 문장마다 만드는 데 몇 초가 걸려서, 앱이 다음 문장을 미리 받아둡니다. 인터넷이 필요하고 Gemini 무료 한도를 씁니다.'
-    : '기기에 설치된 음성으로 바로 읽습니다. 인터넷 없이도 되고 기다림이 없지만, 억양은 기계적입니다.';
 }
 
 els.engineSeg.onclick = e => {
   const b = e.target.closest('button');
   if (!b || b.dataset.v === prefs.engine) return;
-  if (b.dataset.v === 'google' && !gvoices.length) {
-    els.engineNote.textContent = '구글 목소리를 쓰려면 .env 에 GEMINI_API_KEY 가 필요합니다.';
-    return;
-  }
   prefs.engine = b.dataset.v;
   savePrefs();
   applyEngine();
   stopAll(); paint();
+  // 키가 없으면 어디에 넣는지 바로 열어 보여준다
+  if (prefs.engine === 'google' && !gvoices.length) openKeyBox();
 };
 
 els.gvoiceList.onclick = e => {
-  const b = e.target.closest('.vcard');
-  if (!b) return;
-  prefs.gvoice = b.dataset.v;
-  [...els.gvoiceList.children].forEach(x => x.classList.toggle('on', x === b));
-  savePrefs();
-  previewVoice();
+  const b = e.target.closest('.vplay');
+  if (!b) return;                 // 재생 버튼 밖은 반응하지 않는다
+  playVoiceSample(b.dataset.v);
 };
 
 (async () => {
@@ -1079,15 +1249,15 @@ els.gvoiceList.onclick = e => {
 })();
 
 els.toneList.onclick = e => {
-  const b = e.target.closest('.vcard');
-  if (!b) return;
+  const b = e.target.closest('.vplay');
+  if (!b) return;                 // 재생 버튼 밖은 반응하지 않는다
   prefs.tone = b.dataset.v;
   const t = TONES[prefs.tone];
   prefs.rate = t.rate; prefs.pitch = t.pitch;
   els.rateSel.value = t.rate; els.rateVal.textContent = t.rate.toFixed(2).replace(/0$/, '');
   els.pitchSel.value = t.pitch; els.pitchVal.textContent = t.pitch.toFixed(2).replace(/0$/, '');
   paintRange(els.rateSel); paintRange(els.pitchSel);
-  [...els.toneList.children].forEach(x => x.classList.toggle('on', x === b));
+  markToneRows();
   relayout(); paint(); savePrefs();
   previewVoice();
 };
@@ -1139,9 +1309,6 @@ els.saveKeys.onclick = () => {
   if (!gvoices.length && prefs.engine === 'google') { prefs.engine = 'device'; savePrefs(); }
   renderGVoices();
   applyEngine();
-  els.diag.textContent = getKey('gemini')
-    ? '키를 저장했어요. 이제 이야기꾼 말투로 해설합니다.'
-    : '키를 지웠어요. 위키백과를 읽어주는 방식으로 동작합니다.';
 };
 
 /* ── 시작 ────────────────────────────────────────────────── */

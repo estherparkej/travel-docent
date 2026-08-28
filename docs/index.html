@@ -24,38 +24,41 @@
 
   <!-- ══════════ 홈 ══════════ -->
   <section class="view scroller hidden" id="view-home">
-    <header class="pagehead">
-      <h1>여행 도슨트</h1>
-      <p id="homeGreet">오늘은 어디를 걸어볼까요</p>
-    </header>
+    <!-- 풀사이즈 배너 캐러셀 — 제목이 이미지 위에 얹힌다 -->
+    <div class="hero" id="heroWrap">
+      <div class="hero-track" id="heroTrack"></div>
+      <div class="hero-top"><h1>여행 도슨트</h1></div>
+      <div class="hero-dots" id="heroDots"></div>
+    </div>
 
-    <button class="banner" id="homeBanner">
-      <img id="bannerImg" alt="" hidden>
-      <span class="banner-veil"></span>
-      <span class="banner-txt">
-        <span class="banner-tag">오늘의 도슨트</span>
-        <strong id="bannerTitle">불국사</strong>
-        <em id="bannerDesc">천삼백 년을 버틴 돌탑 앞에서</em>
-      </span>
-      <span class="banner-play"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 5.6c0-.72.78-1.16 1.39-.78l8.2 5.18a.92.92 0 0 1 0 1.56l-8.2 5.2c-.61.38-1.39-.06-1.39-.78V5.6Z"/></svg></span>
-    </button>
-
-    <section class="shelf hidden" id="recentShelf">
-      <h2>최근 들은 도슨트</h2>
-      <div class="rowscroll" id="recentRow"></div>
+    <section class="shelf">
+      <h2 id="pickTitle">이 달의 추천</h2>
+      <div class="cards" id="pickList"></div>
     </section>
 
     <section class="shelf">
-      <h2 id="pickTitle">이번 달 추천 도슨트</h2>
-      <div class="cards" id="pickList"></div>
+      <h2>국내 지역 랜드마크</h2>
+      <div class="chiprow" id="krChips"></div>
+      <div class="cards" id="krList"></div>
     </section>
+
+    <section class="shelf">
+      <h2>해외 지역 랜드마크</h2>
+      <div class="chiprow" id="wwChips"></div>
+      <div class="cards" id="wwList"></div>
+    </section>
+
+    <div class="totop-wrap">
+      <button class="totop" id="toTop" aria-label="맨 위로">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 19V5.5M6 11.5 12 5.5l6 6"/></svg>
+      </button>
+    </div>
   </section>
 
   <!-- ══════════ 검색 ══════════ -->
   <section class="view scroller hidden" id="view-search">
     <header class="pagehead">
       <h1>검색</h1>
-      <p>가고 싶은 곳을 적으면 그 자리의 이야기를 들려드려요</p>
     </header>
 
     <form class="searchbar" id="searchForm">
@@ -153,7 +156,6 @@
   <section class="view scroller hidden" id="view-history">
     <header class="pagehead">
       <h1>히스토리</h1>
-      <p>지나온 자리들이에요</p>
     </header>
     <ul id="logList" class="log"></ul>
     <p class="empty" id="logEmpty">아직 들은 곳이 없어요.<br>검색에서 장소를 찾아 보세요.</p>
@@ -164,12 +166,11 @@
   <section class="view scroller hidden" id="view-settings">
     <header class="pagehead">
       <h1>설정</h1>
-      <p>목소리와 해설 방식을 고를 수 있어요</p>
     </header>
 
       <div class="field">
         <button class="acc-head" id="keyAccHead" aria-expanded="false">
-          <span class="flabel">AI 키 <em>넣으면 이야기꾼 말투로 바뀌어요</em></span>
+          <span class="flabel">AI 키</span>
           <span class="acc-right">
             <b id="keyState">없음</b>
             <span class="ico" aria-hidden="true">
@@ -197,7 +198,6 @@
           <button data-v="device" class="on">기기 목소리</button>
           <button data-v="google">구글 목소리</button>
         </div>
-        <p class="hint" id="engineNote"></p>
       </div>
 
       <div class="field" id="deviceField">
@@ -225,7 +225,7 @@
       </div>
 
       <div class="field hidden" id="googleField">
-        <span class="flabel">구글 음성 선택 <em>누르면 들려드려요</em></span>
+        <span class="flabel">구글 음성 선택</span>
         <div class="voices" id="gvoiceList"></div>
       </div>
 
@@ -249,11 +249,10 @@
       </div>
 
       <div class="field">
-        <span class="flabel">스타일 <em>누르면 바로 들려드려요</em></span>
+        <span class="flabel">스타일</span>
         <div class="voices" id="toneList"></div>
       </div>
 
-      <p class="note" id="diag"></p>
       </section>
 
 </main>

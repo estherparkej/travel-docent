@@ -10,6 +10,7 @@
   --dim:#5E5E62;
   --dim2:#96969C;
   --line:#EDEDF0;
+  --line-soft:#F2F2F5;      /* 셀 사이 흐릿한 구분선 */
   --tint:#F6F6F8;
   --tint2:#EFEFF3;
   --track:#E8E8ED;          /* 슬라이더 트랙 */
@@ -37,7 +38,7 @@
   --fs-lg:20px;
   --fs-xl:24px;
   --fs-2xl:32px;
-  --fs-title:32px;          /* 각 탭 제목 */
+  --fs-title:28px;          /* 각 탭 제목 */
 
   --gap:16px;                /* 모든 영역 좌우 마진 */
   --navh:64px;              /* 캡슐 내비 높이 */
@@ -245,7 +246,7 @@ main{position:relative;min-height:0;overflow:hidden}
 
 .log{list-style:none}
 .log li{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px;
-  padding:12px 0;border-bottom:1px solid var(--line)}
+  padding:12px 0;border-bottom:1px solid var(--line-soft)}
 .log .n{font-size:var(--fs-xs);color:var(--dim2);font-variant-numeric:tabular-nums;width:20px}
 .log .t{font-size:var(--fs-md);font-weight:600;word-break:keep-all;overflow:hidden;
   text-overflow:ellipsis;white-space:nowrap}
@@ -336,16 +337,28 @@ main{position:relative;min-height:0;overflow:hidden}
 .acc-head[aria-expanded="true"] .ico{transform:rotate(180deg)}
 .acc-body{padding-top:12px}
 
-.voices{display:flex;flex-direction:column;gap:7px}
-.vcard{display:grid;grid-template-columns:1fr auto;align-items:center;gap:12px;
-  text-align:left;padding:12px 14px;border-radius:13px;
-  background:var(--line);border:1px solid transparent;transition:var(--dur) var(--gentle)}
-.vcard.on{border-color:var(--acc);background:rgba(0,123,255,.10)}
-.vcard b{display:block;font-size:var(--fs-sm);font-weight:600;line-height:var(--lh)}
-.vcard em{display:block;font-style:normal;font-size:var(--fs-xs);color:var(--dim);margin-top:2px;line-height:var(--lh)}
-.vcard .vp{width:26px;height:26px;padding:6px;border-radius:50%;
-  background:var(--line);color:var(--ink)}
-.vcard.on .vp{background:var(--grad);color:#2A1403}
+/* 목소리 목록 — 배경 없이 셀 리스트로. 재생 버튼만 누를 수 있다. */
+.voices{display:block}
+.vrow{display:grid;grid-template-columns:minmax(0,1fr) 36px;align-items:center;gap:12px;
+  padding:12px 0;border-bottom:1px solid var(--line-soft)}
+.vrow:last-child{border-bottom:0}
+.vtext{min-width:0}
+.vtext b{display:block;font-size:var(--fs-md);font-weight:600;line-height:var(--lh);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vrow.on .vtext b{color:var(--acc-deep)}
+.vtext em{display:block;font-style:normal;font-size:var(--fs-xs);color:var(--dim);
+  margin-top:2px;line-height:var(--lh);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* 동그란 그레이 배경 · 파란 아이콘 */
+.vplay{width:36px;height:36px;padding:0;border-radius:50%;flex:none;
+  display:grid;place-items:center;
+  background:var(--tint2);color:var(--acc);
+  transition:background var(--dur) var(--gentle),transform var(--dur) var(--gentle)}
+.vplay svg{width:20px;height:20px}
+.vplay:active{transform:scale(.96)}
+.vplay.playing{background:var(--acc-soft)}
+.vplay .spin{animation:spin .9s linear infinite}
 
 select,input[type=text]{
   width:100%;padding:13px;background:var(--line);color:var(--ink);
@@ -452,6 +465,11 @@ input[type=range]:disabled{opacity:.4}
 /* 스크롤 화면은 블록으로. 그리드면 자식의 min-content 가 트랙을 밀어
    화면 밖으로 넘치고, 세로로도 늘어난다. */
 .view.scroller{display:block;align-content:start}
+/* 스크롤바는 보이지 않게. 스크롤 자체는 그대로 된다. */
+.scroller,.transcript,.rowscroll,.rail{scrollbar-width:none;-ms-overflow-style:none}
+.scroller::-webkit-scrollbar,.transcript::-webkit-scrollbar,
+.rowscroll::-webkit-scrollbar,.rail::-webkit-scrollbar{display:none;width:0;height:0}
+
 .scroller{overflow-y:auto;-webkit-overflow-scrolling:touch;
   padding:calc(var(--safe-t) + 8px) var(--gap) calc(var(--navclear) + 8px)}
 .pagehead{padding:12px 0 20px}
@@ -463,25 +481,62 @@ input[type=range]:disabled{opacity:.4}
 .shelf:last-child{margin-bottom:0}
 .shelf h2{font-size:var(--fs-md);font-weight:700;margin-bottom:12px}
 
-/* 빅 배너 */
-.banner{
-  position:relative;display:block;width:100%;max-width:100%;aspect-ratio:16/10;
-  border-radius:18px;overflow:hidden;background:var(--tint);
-  margin-bottom:28px;text-align:left;
+/* 배너 캐러셀 — 화면 끝까지, 지금의 두 배 높이 */
+#view-home{padding-top:0}
+.hero{
+  position:relative;overflow:hidden;
+  margin:0 calc(var(--gap)*-1) 32px;      /* 좌우 여백을 빼서 풀블리드 */
+  height:clamp(460px,68vh,640px);         /* 길고 시원하게 */
+  background:var(--tint);
+  touch-action:pan-y;user-select:none;
 }
-.banner img{width:100%;height:100%;object-fit:cover}
-.banner-veil{position:absolute;inset:0;
-  background:linear-gradient(to top,rgba(0,0,0,.66) 0%,rgba(0,0,0,.12) 52%,transparent 78%)}
-.banner-txt{position:absolute;left:16px;right:64px;bottom:14px;color:#FFF}
-.banner-tag{display:inline-block;font-size:var(--fs-2xs);font-weight:700;
-  padding:4px 9px;border-radius:999px;background:var(--acc);margin-bottom:8px}
-.banner-txt strong{display:block;font-size:var(--fs-lg);font-weight:700;line-height:var(--lh-tight)}
-.banner-txt em{display:block;font-style:normal;font-size:var(--fs-xs);opacity:.85;margin-top:4px;
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.banner-play{position:absolute;right:14px;bottom:14px;width:44px;height:44px;
-  border-radius:50%;background:var(--acc);color:#FFF;display:grid;place-items:center}
-.banner-play svg{width:22px;height:22px}
-.banner:active{transform:scale(.99)}
+.hero-track{display:flex;height:100%;will-change:transform}
+.hslide{position:relative;flex:0 0 100%;height:100%;overflow:hidden}
+.hslide img{width:100%;height:100%;object-fit:cover;pointer-events:none;
+  transform:scale(1.02);transition:transform 8s linear}
+.hslide.on img{transform:scale(1.10)}     /* 머무는 동안 아주 천천히 밀어준다 */
+
+.hveil{position:absolute;inset:0;pointer-events:none;
+  background:
+    linear-gradient(to top,
+      rgba(0,0,0,.78) 0%, rgba(0,0,0,.58) 18%,
+      rgba(0,0,0,.28) 38%, rgba(0,0,0,.08) 55%, transparent 72%);
+}
+
+.htxt{position:absolute;left:var(--gap);right:var(--gap);bottom:56px;color:#FFF}
+.htag{
+  display:inline-block;font-size:11px;font-weight:600;letter-spacing:.08em;
+  padding:5px 11px;border-radius:999px;margin-bottom:14px;
+  background:rgba(255,255,255,.16);backdrop-filter:blur(10px);
+  border:1px solid rgba(255,255,255,.24);
+}
+.htxt strong{display:block;font-size:clamp(30px,8.6vw,38px);font-weight:700;
+  line-height:1.12;letter-spacing:-.035em;
+  text-shadow:0 2px 28px rgba(0,0,0,.45)}
+
+/* 인디케이터 — 제목과 같은 선에 맞춘 얇은 막대 */
+.hero-dots{position:absolute;left:var(--gap);bottom:28px;
+  display:flex;gap:5px;pointer-events:none}
+.hero-dots i{width:14px;height:3px;border-radius:99px;background:rgba(255,255,255,.38);
+  transition:width var(--dur) var(--gentle),background var(--dur) var(--gentle)}
+.hero-dots i.on{width:34px;background:#FFF}
+
+/* 지역 칩 */
+.chiprow{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;
+  margin:0 calc(var(--gap)*-1) 14px;padding:0 var(--gap) 2px}
+.chiprow::-webkit-scrollbar{display:none}
+.rchip{flex:0 0 auto;padding:5px 16px;border-radius:999px;
+  background:var(--tint);color:var(--dim);font-size:var(--fs-xs);font-weight:600;
+  line-height:1.6;transition:background var(--dur) var(--gentle),color var(--dur) var(--gentle)}
+.rchip.on{background:var(--ink);color:#FFF}
+.rchip:active{transform:scale(.96)}
+
+/* 맨 위로 */
+.totop-wrap{display:flex;justify-content:center;margin:64px 0}
+.totop{width:48px;height:48px;border-radius:50%;display:grid;place-items:center;
+  background:var(--tint);color:var(--dim);flex:none}
+.totop svg{width:22px;height:22px}
+.totop:active{background:var(--tint2);transform:scale(.96)}
 
 /* 가로 스크롤 줄 */
 .rowscroll{display:flex;gap:12px;overflow-x:auto;scrollbar-width:none;
@@ -494,13 +549,15 @@ input[type=range]:disabled{opacity:.4}
 .rowscroll .chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* 카드 리스트 */
-.cards{display:flex;flex-direction:column;gap:10px}
-.card{display:grid;grid-template-columns:64px minmax(0,1fr) 36px;align-items:center;gap:13px;
-  width:100%;
-  padding:8px;border-radius:14px;background:var(--tint);text-align:left;
-  transition:background var(--dur) var(--gentle),transform var(--dur) var(--gentle)}
-.card:active{background:var(--tint2);transform:scale(.99)}
-.card .thumb{width:64px;height:64px;border-radius:11px;overflow:hidden;background:var(--tint2);
+/* 홈 리스트도 셀 리스트로. 상자 대신 흐릿한 선으로만 나눈다. */
+.cards{display:block}
+.card{display:grid;grid-template-columns:56px minmax(0,1fr) 36px;align-items:center;gap:14px;
+  width:100%;padding:12px 0;text-align:left;background:none;
+  border-bottom:1px solid var(--line-soft);
+  transition:opacity var(--dur) var(--gentle)}
+.card:last-child{border-bottom:0}
+.card:active{opacity:.55}
+.card .thumb{width:56px;height:56px;border-radius:10px;overflow:hidden;background:var(--tint);
   display:grid;place-items:center;color:var(--dim2)}
 .card .thumb img{width:100%;height:100%;object-fit:cover}
 .card .thumb svg{width:24px;height:24px}
@@ -509,8 +566,9 @@ input[type=range]:disabled{opacity:.4}
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .card .meta em{display:block;font-style:normal;font-size:var(--fs-xs);color:var(--dim);
   margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.card .go{color:var(--acc-deep);display:grid;place-items:center}
-.card .go svg{width:22px;height:22px}
+.card .go{width:36px;height:36px;border-radius:50%;flex:none;
+  display:grid;place-items:center;background:var(--tint2);color:var(--acc)}
+.card .go svg{width:20px;height:20px}
 
 /* ══════════ 검색 ══════════ */
 /* 검색 필드 — 스크롤 흐름 안, 가까운 도슨트 바로 위 */
@@ -541,7 +599,7 @@ input[type=range]:disabled{opacity:.4}
 
 /* ══════════ 히스토리 ══════════ */
 /* 기록 지우기 — 큰 버튼이 아니라 조용한 텍스트 버튼 */
-.textlink{display:inline-block;margin-top:18px;padding:8px 2px;
+.textlink{display:block;margin:24px auto 0;padding:10px 16px;text-align:center;
   font-size:var(--fs-sm);font-weight:600;color:var(--dim);
   background:none;border:0;transition:color var(--dur) var(--gentle)}
 .textlink:active{color:var(--acc-deep)}
