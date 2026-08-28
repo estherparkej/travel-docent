@@ -38,11 +38,12 @@ const els = {
   miniSub: $('miniSub'), miniPlay: $('miniPlay'), miniFill: $('miniFill'),
   settings: $('settings'), lengthSeg: $('lengthSeg'), toneList: $('toneList'),
   voiceSel: $('voiceSel'), preview: $('previewVoice'), voiceHint: $('voiceHint'),
-  engineSeg: $('engineSeg'),
+  engineSeg: $('engineSeg'), quotaNote: $('quotaNote'), quotaTxt: $('quotaTxt'),
   deviceField: $('deviceField'), googleField: $('googleField'), gvoiceList: $('gvoiceList'),
   rateSel: $('rateSel'), rateVal: $('rateVal'),
   pitchSel: $('pitchSel'), pitchVal: $('pitchVal'),
-  keyAccHead: $('keyAccHead'), keyAccBody: $('keyAccBody'), keyState: $('keyState'),
+  openApi: $('openApi'), apiDot: $('apiDot'),
+  apiSheet: $('apiSheet'), apiInner: $('apiInner'), apiHead: $('apiHead'),
   geminiKey: $('geminiKey'), pexelsKey: $('pexelsKey'), saveKeys: $('saveKeys'),
   accHead: $('voiceAccHead'), accBody: $('voiceAccBody'), voiceNow: $('voiceNow'),
 };
@@ -51,6 +52,11 @@ const ICO = {
   play: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8.6 5.2c0-.83.9-1.34 1.6-.9l9.1 5.75a1.05 1.05 0 0 1 0 1.78L10.2 17.6c-.7.44-1.6-.07-1.6-.9V5.2Z"/></svg>',
   pause: '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="7" y="5" width="3.6" height="14" rx="1.3"/><rect x="13.4" y="5" width="3.6" height="14" rx="1.3"/></svg>',
   replay: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 1 0 2.5-5.8M4 4.5V10h5.5"/></svg>',
+  spin: '<svg class="spin" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-opacity=".25" stroke-width="2.4"/><path d="M20 12a8 8 0 0 0-8-8" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>',
+  // 탭바 가운데 아이콘 — 동그라미 안에서 상태가 바뀐다
+  tabPlay: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8.4"/><path d="M10.4 9.2c0-.5.55-.8.96-.54l4.1 2.6c.38.24.38.8 0 1.04l-4.1 2.6c-.41.26-.96-.04-.96-.54V9.2Z" fill="currentColor" stroke="none"/></svg>',
+  tabPause: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8.4"/><rect x="9.3" y="8.6" width="2" height="6.8" rx=".9" fill="currentColor" stroke="none"/><rect x="12.7" y="8.6" width="2" height="6.8" rx=".9" fill="currentColor" stroke="none"/></svg>',
+  tabSpin: '<svg class="spin" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.4" stroke="currentColor" stroke-opacity=".28" stroke-width="1.8"/><path d="M20.4 12A8.4 8.4 0 0 0 12 3.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
 };
 
 /* ── 설정값 ──────────────────────────────────────────────── */
@@ -75,6 +81,31 @@ const TONES = {
 };
 const gap = () => (TONES[prefs.tone] || TONES.warm).gap;
 
+/* 구글 목소리를 쓸 차례인가. 이번 해설에서 한 번 실패했으면 잠시 기기 목소리로. */
+/* 무료 한도에 걸린 시각. 설정 화면에서 안내한다. */
+const QUOTA_WAIT = 60;                 // 대략 이 정도 지나면 풀린다 (초)
+function markQuota() {
+  state.quotaAt = Date.now();
+  renderQuota();
+}
+
+function renderQuota() {
+  const left = state.quotaAt
+    ? QUOTA_WAIT - Math.floor((Date.now() - state.quotaAt) / 1000) : 0;
+  if (left <= 0) {
+    state.quotaAt = 0;
+    els.quotaNote.classList.add('hidden');
+    return;
+  }
+  els.quotaNote.classList.remove('hidden');
+  els.quotaTxt.innerHTML =
+    `<b>구글 무료 한도에 걸렸어요.</b> 분당 요청 수 제한이라 ` +
+    `<b>${left}초</b>쯤 뒤에 다시 됩니다. 그동안은 기기 목소리로 읽어드려요.`;
+}
+setInterval(() => { if (state.quotaAt) renderQuota(); }, 1000);
+
+const useGoogle = () => prefs.engine === 'google' && !state.fallback && tts.available();
+
 /* ── 상태 ────────────────────────────────────────────────── */
 const state = {
   pos: null, place: '', address: '', image: '',
@@ -82,6 +113,7 @@ const state = {
   heard: JSON.parse(localStorage.getItem('heard') || '[]'),
   streaming: false, unlocked: false, resolved: '', view: 'player', scriptOpen: false,
   manual: '',   // 검색이나 카드로 고른 장소
+  fallback: false, quotaAt: 0,
   shots: [], slide: 0, railT: null, followT: 0,
 };
 
@@ -342,14 +374,14 @@ async function playChunk(ci, startLine) {
 
 /* 구글 목소리가 막히면 조용히 멈추지 않고 기기 목소리로 이어 읽는다 */
 function googleFailed(msg, fromLine) {
+  if (msg === 'QUOTA') markQuota();
   notify(msg === 'QUOTA'
     ? '구글 목소리 분당 한도에 걸렸어요. 기기 목소리로 이어 읽을게요.'
     : msg === 'SLOW'
       ? '구글 목소리가 너무 오래 걸려서 기기 목소리로 이어 읽을게요.'
       : '구글 목소리를 불러오지 못했어요. 기기 목소리로 이어 읽을게요.');
-  prefs.engine = 'device';
-  savePrefs();
-  applyEngine();
+  // 설정 자체는 건드리지 않는다. 이번 해설에만 기기 목소리로 대신한다.
+  state.fallback = true;
   killAudio();
   P.chunks.forEach(c => { c.locked = false; });
   P.speaking = false;
@@ -363,7 +395,7 @@ function speakCurrent() {
   const line = P.lines[P.idx];
   if (!line) return;
   const seq = ++P.seq;
-  if (prefs.engine === 'google') {
+  if (useGoogle()) {
     if (!P.chunks.length) buildChunks();
     const i = Math.max(0, P.idx);
     return playChunk(Math.max(0, chunkOf(i)), i);
@@ -463,7 +495,7 @@ function paint() {
   if (!els.track.classList.contains('drag')) els.tCur.textContent = fmt(cur);
   els.tDur.textContent = (state.streaming && !dur) ? '--:--' : fmt(dur);
 
-  const busy = (state.streaming && !P.lines.length) || P.waiting;
+  const busy = (state.streaming && !P.lines.length) || P.waiting;   // 대본·목소리를 만드는 중
   const on = P.playing && !P.paused;
   const replay = P.ended && !on;
   els.icoWait.hidden = !busy;
@@ -471,7 +503,7 @@ function paint() {
   els.icoPlay.hidden = busy || on || replay;
   els.icoPause.hidden = busy || !on;
   els.play.setAttribute('aria-label', on ? '일시정지' : replay ? '처음부터 다시' : '재생');
-  els.miniPlay.innerHTML = busy ? '' : (on ? ICO.pause : (P.ended ? ICO.replay : ICO.play));
+  els.miniPlay.innerHTML = busy ? ICO.spin : (on ? ICO.pause : (P.ended ? ICO.replay : ICO.play));
 
   els.lower.classList.toggle('loading', busy);
   els.status.classList.toggle('mute', on);
@@ -497,7 +529,9 @@ function highlight() {
     cur.el.scrollIntoView({ block: 'center', behavior: 'smooth' });
 }
 
-setInterval(() => { if (P.playing && !P.paused) paint(); }, 250);
+/* 상태가 어디서 바뀌든 아이콘이 늘 따라오도록 항상 그린다.
+   재생 중에만 그리면, 다른 경로로 멈췄을 때 아이콘이 옛 상태로 남는다. */
+setInterval(paint, 250);
 
 // 직접 스크롤하면 4초간 자동 따라가기를 멈춘다
 els.transcript.addEventListener('touchstart', () => { state.followT = Date.now() + 4000; }, { passive: true });
@@ -543,7 +577,7 @@ function addLine(text) {
   relayout(prefs.engine === 'google');
   if (prefs.engine === 'google') buildChunks();
   if (P.idx < 0) P.idx = 0;
-  if (prefs.engine === 'google') {
+  if (useGoogle()) {
     if (P.playing && !P.paused && P.pendingNext != null && P.chunks[P.pendingNext]) {
       const n = P.pendingNext; P.pendingNext = null; playChunk(n);
     } else if (P.playing && !P.speaking && !P.paused && !P.chunks.some(c => c.locked)) {
@@ -559,9 +593,8 @@ async function narrate({ again = false } = {}) {
   if (state.streaming) return;
   const manual = (state.manual || '').trim();
   if (!manual && !state.pos) {
-    showError('아직 위치를 확인하지 못했어요. 위치 권한을 허용했는지 확인해 주세요. '
-            + '실내라면 설정에서 장소를 직접 입력할 수 있어요.');
-    goto('script');
+    notify('어디를 들려드릴지 먼저 골라 주세요.');
+    goto('search');
     return;
   }
 
@@ -569,6 +602,7 @@ async function narrate({ again = false } = {}) {
   stopAll();
   state.streaming = true;
   state.resolved = '';
+  state.fallback = false;   // 이번엔 다시 구글 목소리로 시도한다
   P.lines = []; P.idx = -1; P.chunks = []; P.ci = 0; P.pendingNext = null;
   els.transcript.innerHTML = '';
   els.peekLine.textContent = '이 자리의 이야기를 쓰고 있어요…';
@@ -778,13 +812,14 @@ function onPositionError(err) {
   els.status.textContent = {
     1: '위치 권한이 꺼져 있어요', 2: '위치를 확인할 수 없어요', 3: '위치 확인이 오래 걸려요',
   }[err.code] || '위치 오류';
-  els.name.textContent = '장소를 직접 입력해 주세요';
-  els.addr.textContent = '오른쪽 위에서 지명을 적어 주세요';
+  els.name.textContent = '어디를 들어볼까요';
+  els.addr.textContent = '검색 탭에서 장소를 찾아보세요';
 }
 
 if (!window.isSecureContext) {
   els.status.textContent = 'HTTPS가 아니어서 GPS를 쓸 수 없어요';
-  els.name.textContent = '장소를 직접 입력해 주세요';
+  els.name.textContent = '어디를 들어볼까요';
+  els.addr.textContent = '검색 탭에서 장소를 찾아보세요';
 } else if (navigator.geolocation) {
   navigator.geolocation.watchPosition(onPosition, onPositionError, {
     enableHighAccuracy: true, maximumAge: 5000, timeout: 20000,
@@ -856,8 +891,9 @@ function playPlace(name) {
 /* ── 배너 캐러셀 ──────────────────────────────────────────
    8장을 국내·해외 번갈아. 3초에 걸쳐 부드럽게 넘어가고,
    손을 대면 멈췄다가 손을 떼면 다시 돈다. */
-const SLIDE_MS = 3000;      // 넘어가는 데 걸리는 시간
-const HOLD_MS = 3500;       // 머무는 시간
+const SLIDE_MS = 2000;      // 저절로 넘어갈 때 (부드럽게)
+const SWIPE_MS = 320;       // 손으로 넘길 때 (곧바로 따라오게)
+const HOLD_MS = 3000;       // 머무는 시간
 const hero = { i: 0, timer: null, w: 0, dragging: false, x0: 0, dx: 0 };
 
 async function bannerImage(b) {
@@ -893,9 +929,10 @@ function buildHero() {
 const measureHero = () => { hero.w = els.heroWrap.clientWidth; };
 addEventListener('resize', () => { measureHero(); place(hero.i, false); });
 
-function place(i, animate = true) {
+function place(i, animate = true, ms = SLIDE_MS) {
   hero.i = i;
-  els.heroTrack.style.transition = animate ? `transform ${SLIDE_MS}ms cubic-bezier(.4,0,.2,1)` : 'none';
+  els.heroTrack.style.transition = animate
+    ? `transform ${ms}ms cubic-bezier(.22,.61,.36,1)` : 'none';
   els.heroTrack.style.transform = `translate3d(${-i * hero.w}px,0,0)`;
   const real = i % BANNERS.length;
   [...els.heroDots.children].forEach((d, k) => d.classList.toggle('on', k === real));
@@ -926,17 +963,18 @@ function heroDrag() {
     if (!hero.dragging) return;
     hero.dx = e.clientX - hero.x0;
     els.heroTrack.style.transform = `translate3d(${-hero.i * hero.w + hero.dx}px,0,0)`;
-  });
+  }, { passive: true });
   const end = () => {
     if (!hero.dragging) return;
     hero.dragging = false;
     let i = hero.i;
-    if (hero.dx < -50) i++;
-    else if (hero.dx > 50) i--;
+    const th = Math.min(60, hero.w * 0.12);      // 화면의 12%만 밀어도 넘어간다
+    if (hero.dx < -th) i++;
+    else if (hero.dx > th) i--;
     if (i < 0) { place(BANNERS.length, false); i = BANNERS.length - 1; }
-    place(i);
-    if (i >= BANNERS.length) setTimeout(() => place(0, false), SLIDE_MS + 40);
-    setTimeout(startHero, 800);
+    place(i, true, SWIPE_MS);
+    if (i >= BANNERS.length) setTimeout(() => place(0, false), SWIPE_MS + 40);
+    setTimeout(startHero, 1200);
   };
   wrap.addEventListener('pointerup', end);
   wrap.addEventListener('pointercancel', end);
@@ -1014,6 +1052,7 @@ function goto(view) {
   els.mini.classList.toggle('hidden', view === 'player' || !P.lines.length);
   if (view === 'home') renderHome();
   if (view === 'search') renderSearch();
+  if (view === 'settings') renderQuota();
   if (view === 'player') closeScript();
 }
 document.querySelectorAll('.tab').forEach(b => b.onclick = () => goto(b.dataset.view));
@@ -1125,6 +1164,7 @@ async function previewGoogle() {
     a.playbackRate = +els.rateSel.value || 1;
     a.play().catch(() => {});
   } catch (e) {
+    if (e.message === 'QUOTA') markQuota();
   }
   paint();
 }
@@ -1132,7 +1172,7 @@ async function previewGoogle() {
 function previewVoice() {
   unlockAudio();
   if (P.playing && P.lines.length) { playFrom(P.idx); return; }  // 듣는 중이면 끊지 않는다
-  if (prefs.engine === 'google') return previewGoogle();
+  if (prefs.engine === 'google' && tts.available()) return previewGoogle();
   speechSynthesis.cancel();
   P.seq++;
   const u = new SpeechSynthesisUtterance(SAMPLE);
@@ -1146,14 +1186,7 @@ function previewVoice() {
 els.preview.onclick = previewVoice;
 
 /* ── 목소리 종류 전환 ────────────────────────────────────── */
-function openKeyBox() {
-  els.keyAccHead.setAttribute('aria-expanded', 'true');
-  els.keyAccBody.classList.remove('hidden');
-  const k = getKeys();
-  els.geminiKey.value = k.gemini || '';
-  els.pexelsKey.value = k.pexels || '';
-  els.keyAccHead.scrollIntoView({ block: 'center', behavior: 'smooth' });
-}
+const openKeyBox = () => openApiSheet();
 
 function renderGVoices() {
   if (!gvoices.length) {
@@ -1210,6 +1243,7 @@ async function playVoiceSample(id) {
     await previewEl.play();
   } catch (e) {
     previewOf = ''; previewLoading = '';
+    if (e.message === 'QUOTA') markQuota();
   }
   markVoiceButtons();
 }
@@ -1284,22 +1318,55 @@ els.voiceSel.onchange = () => {
 /* ── API 키 ──────────────────────────────────────────────
    키는 이 기기의 localStorage 에만 있다. 코드에도 서버에도 없다. */
 function refreshKeyState() {
-  const g = getKey('gemini'), x = getKey('pexels');
-  els.keyState.textContent = g ? (x ? 'Gemini · Pexels' : 'Gemini') : '없음';
-  els.keyState.style.color = g ? 'var(--acc-deep)' : 'var(--dim2)';
+  els.apiDot.classList.toggle('on', !!getKey('gemini'));
   setChip(provider());
 }
 
-els.keyAccHead.onclick = () => {
-  const open = els.keyAccHead.getAttribute('aria-expanded') === 'true';
-  els.keyAccHead.setAttribute('aria-expanded', String(!open));
-  els.keyAccBody.classList.toggle('hidden', open);
-  if (!open) {
-    const k = getKeys();
-    els.geminiKey.value = k.gemini || '';
-    els.pexelsKey.value = k.pexels || '';
-  }
-};
+function openApiSheet() {
+  const k = getKeys();
+  els.geminiKey.value = k.gemini || '';
+  els.pexelsKey.value = k.pexels || '';
+  els.apiSheet.classList.remove('hidden');
+  els.apiInner.style.transform = '';
+}
+
+function closeApiSheet() {
+  els.apiInner.style.transition = 'transform .22s ease';
+  els.apiInner.style.transform = 'translateY(100%)';
+  setTimeout(() => {
+    els.apiSheet.classList.add('hidden');
+    els.apiInner.style.transition = '';
+    els.apiInner.style.transform = '';
+  }, 220);
+}
+
+els.openApi.onclick = openApiSheet;
+$('closeApi').onclick = closeApiSheet;
+els.apiSheet.onclick = e => { if (e.target === els.apiSheet) closeApiSheet(); };
+
+/* 손잡이를 쓸어내리면 닫힌다 */
+(() => {
+  let y0 = 0, dy = 0, on = false;
+  const start = e => { on = true; dy = 0; y0 = e.clientY; els.apiInner.classList.add('drag'); };
+  const move = e => {
+    if (!on) return;
+    dy = Math.max(0, e.clientY - y0);
+    els.apiInner.style.transform = `translateY(${dy}px)`;
+  };
+  const end = () => {
+    if (!on) return;
+    on = false;
+    els.apiInner.classList.remove('drag');
+    if (dy > 110) { closeApiSheet(); return; }
+    els.apiInner.classList.add('snapback');
+    els.apiInner.style.transform = '';
+    setTimeout(() => els.apiInner.classList.remove('snapback'), 320);
+  };
+  els.apiHead.addEventListener('pointerdown', start);
+  addEventListener('pointermove', move);
+  addEventListener('pointerup', end);
+  addEventListener('pointercancel', end);
+})();
 
 els.saveKeys.onclick = () => {
   setKey('gemini', els.geminiKey.value);
@@ -1309,6 +1376,7 @@ els.saveKeys.onclick = () => {
   if (!gvoices.length && prefs.engine === 'google') { prefs.engine = 'device'; savePrefs(); }
   renderGVoices();
   applyEngine();
+  closeApiSheet();
 };
 
 /* ── 시작 ────────────────────────────────────────────────── */
@@ -1340,17 +1408,22 @@ function updateMediaSession() {
       album: P.lines.length ? `${P.lines.length}문장` : '',
       artwork: art,
     });
-    navigator.mediaSession.playbackState =
-      (P.playing && !P.paused) ? 'playing' : P.lines.length ? 'paused' : 'none';
+    // 실제 오디오가 있을 때만 상태를 알린다.
+    // 기기 음성합성은 미디어가 아니어서, playing 이라고 알리면
+    // 브라우저가 "재생 중이 아닌데?" 하며 pause 를 되돌려 보낸다.
+    navigator.mediaSession.playbackState = P.audio
+      ? ((P.playing && !P.paused) ? 'playing' : 'paused')
+      : 'none';
   } catch (_) {}
 }
 
 if ('mediaSession' in navigator) {
   const set = (k, fn) => { try { navigator.mediaSession.setActionHandler(k, fn); } catch (_) {} };
-  set('play', () => { if (!P.playing || P.paused) togglePlay(); });
-  set('pause', () => { if (P.playing && !P.paused) togglePlay(); });
-  set('previoustrack', () => playFrom(P.idx - 1));
-  set('nexttrack', () => playFrom(P.idx + 1));
+  // 잠금화면 조작은 진짜 오디오(구글 목소리)일 때만 받는다
+  set('play', () => { if (P.audio && (!P.playing || P.paused)) togglePlay(); });
+  set('pause', () => { if (P.audio && P.playing && !P.paused) togglePlay(); });
+  set('previoustrack', () => { if (P.audio) playFrom(P.idx - 1); });
+  set('nexttrack', () => { if (P.audio) playFrom(P.idx + 1); });
 }
 
 if ('serviceWorker' in navigator) {
