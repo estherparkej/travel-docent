@@ -137,14 +137,10 @@ export function synth(text, voice = 'sulafat', tone = 'warm') {
     let last = null;
     for (const m of order) {
       try {
-        let pcm;
-        try {
-          pcm = await paced(() => call(m, key, prompt, voice));
-        } catch (e) {
-          if (e.status !== 429) throw e;
-          await sleep(6000);                       // 분당 한도 — 한 번만 더
-          pcm = await paced(() => call(m, key, prompt, voice));
-        }
+        /* 429 는 이 열쇠의 한도가 찼다는 뜻이다. 모델을 바꿔도 같은 한도를 쓰므로
+           다른 모델로 다시 물어봐야 소용이 없다. 곧바로 알려서 기기 목소리로 넘긴다.
+           예전에는 모델마다 6초씩 기다렸다가 다시 물어보느라 13초를 버렸다. */
+        const pcm = await paced(() => call(m, key, prompt, voice));
         model = m;
         const url = URL.createObjectURL(toWav(pcm));
         const dur = await new Promise(res => {
@@ -154,7 +150,7 @@ export function synth(text, voice = 'sulafat', tone = 'warm') {
         });
         return { url, dur };
       } catch (e) {
-        if (e.status === 429) { last = 'QUOTA'; continue; }
+        if (e.status === 429) throw new Error('QUOTA');   // 기다리지 않고 바로 넘긴다
         last = e.message;
       }
     }
