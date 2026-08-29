@@ -31,7 +31,8 @@ const els = {
   transcript: $('transcript'), scriptPanel: $('scriptPanel'), scriptPlace: $('scriptPlace'),
   modes: document.querySelector('.modes'),
   viewer: $('viewer'), viewerImg: $('viewerImg'), viewerStage: $('viewerStage'),
-  viewerCap: $('viewerCap'),
+  viewerCap: $('viewerCap'), viewerBg: $('viewerBg'),
+  viewerCount: $('viewerCount'), viewerClose: $('viewerClose'),
   heroWrap: $('heroWrap'), heroTrack: $('heroTrack'), heroDots: $('heroDots'),
   krChips: $('krChips'), krList: $('krList'),
   wwChips: $('wwChips'), wwList: $('wwList'), toTop: $('toTop'),
@@ -1151,92 +1152,250 @@ els.modes.onclick = e => {
   if (state.manual || state.pos) narrate();   // 고른 길이로 다시 들려준다
 };
 
-/* ── 사진 전체보기 ────────────────────────────────────────
-   더블탭·핀치로 확대, 아래로 쓸어내리면 닫힌다. */
-const vw = { s: 1, x: 0, y: 0, sx: 1, px: 0, py: 0, d0: 0, mode: '', pts: new Map() };
+/* ── 사진 크게 보기 ──────────────────────────────────────
+   플레이어의 사진을 누르면 전체 화면으로 열린다.
+   당근 미리보기와 같은 조작: 핀치·더블탭으로 확대, 좌우로 넘기기,
+   아래로 쓸어내리면 사진이 손끝을 따라오다가 놓으면 닫힌다. */
+const vw = {
+  s: 1, x: 0, y: 0,            // 지금 배율과 위치
+  s0: 1, x0: 0, y0: 0,         // 손을 댄 순간의 값
+  bw: 0, bh: 0,                // 확대 전 사진이 차지하던 크기
+  i: 0, mode: '', d0: 0, mx: 0, my: 0,
+  px: 0, py: 0, t0: 0, lastTap: 0, tapX: 0, tapY: 0,
+  pts: new Map(),
+};
 
-function applyView(anim) {
+function vwDraw(anim) {
   els.viewerImg.classList.toggle('snap', !!anim);
   els.viewerImg.style.transform =
     `translate3d(${vw.x}px,${vw.y}px,0) scale(${vw.s})`;
 }
 
-function openViewer() {
-  const shot = state.shots[state.slide];
+/* 확대한 사진이 화면 밖으로 빠져나가지 않게 붙든다 */
+function vwClamp() {
+  const mx = Math.max(0, (vw.bw * vw.s - innerWidth) / 2);
+  const my = Math.max(0, (vw.bh * vw.s - innerHeight) / 2);
+  vw.x = Math.min(mx, Math.max(-mx, vw.x));
+  vw.y = Math.min(my, Math.max(-my, vw.y));
+}
+
+function vwReset(anim) {
+  vw.s = 1; vw.x = 0; vw.y = 0;
+  els.viewerBg.style.opacity = '1';
+  vwDraw(anim);
+}
+
+/* 확대 전 사진 크기를 재둔다. 경계 계산의 기준이 된다. */
+function vwMeasure() {
+  const im = els.viewerImg;
+  if (!im.naturalWidth) return;
+  const k = Math.min(innerWidth / im.naturalWidth, innerHeight / im.naturalHeight, 1);
+  vw.bw = im.naturalWidth * k;
+  vw.bh = im.naturalHeight * k;
+}
+
+function vwShow(i, dir) {
+  const shot = state.shots[i];
   if (!shot) return;
-  els.viewerImg.src = shot.url;
+  vw.i = i;
+  const im = els.viewerImg;
+  if (dir) {                                   // 넘기는 방향으로 살짝 밀어 넣는다
+    im.classList.remove('snap');
+    im.style.opacity = '0';
+    im.style.transform = `translate3d(${dir * 40}px,0,0) scale(1)`;
+  }
+  im.src = shot.url;
+  const done = () => {
+    vwMeasure();
+    vw.s = 1; vw.x = 0; vw.y = 0;
+    im.classList.add('snap');
+    im.style.opacity = '1';
+    vwDraw(true);
+  };
+  im.complete && im.naturalWidth ? done() : (im.onload = done);
+
   els.viewerCap.textContent = shot.credit && shot.credit.startsWith('Pexels')
     ? shot.credit : (shot.title || '');
-  vw.s = 1; vw.x = 0; vw.y = 0;
-  applyView(false);
+  els.viewerCount.textContent =
+    state.shots.length > 1 ? `${i + 1} / ${state.shots.length}` : '';
+}
+
+function openViewer(i) {
+  if (!state.shots.length) return;
   els.viewer.classList.remove('hidden', 'closing');
+  els.viewerBg.style.opacity = '1';
+  vwShow(typeof i === 'number' ? i : state.slide, 0);
+  document.addEventListener('keydown', vwKey);
 }
 
 function closeViewer() {
+  document.removeEventListener('keydown', vwKey);
   els.viewer.classList.add('closing');
   setTimeout(() => {
     els.viewer.classList.add('hidden');
     els.viewer.classList.remove('closing');
+    vwReset(false);
+    els.viewerImg.removeAttribute('src');
   }, 200);
 }
-$('viewerClose').onclick = closeViewer;
 
-/* 사진 영역을 누르면 열린다 (넘기는 동작과 구분) */
-els.heroWrap.addEventListener('click', () => {
-  if (Math.abs(hero.dx) < 8 && state.shots.length) openViewer();
-});
+function vwKey(e) {
+  if (e.key === 'Escape') closeViewer();
+  else if (e.key === 'ArrowRight') vwGo(1);
+  else if (e.key === 'ArrowLeft') vwGo(-1);
+}
+
+function vwGo(step) {
+  const n = vw.i + step;
+  if (n < 0 || n >= state.shots.length) { vwReset(true); return; }
+  vwShow(n, step);
+  // 플레이어의 캐러셀도 같은 자리로 옮겨 둔다
+  els.rail.scrollLeft = n * els.rail.clientWidth;
+}
+
+els.viewerClose.onclick = closeViewer;
+
+/* 플레이어의 사진을 누르면 열린다. 넘기는 동작과 구분한다. */
+(() => {
+  const stage = document.querySelector('.stage');
+  if (!stage) return;
+  let sx = 0, sy = 0, st = 0;
+  stage.addEventListener('pointerdown', e => { sx = e.clientX; sy = e.clientY; st = Date.now(); });
+  stage.addEventListener('pointerup', e => {
+    const moved = Math.hypot(e.clientX - sx, e.clientY - sy);
+    if (moved < 10 && Date.now() - st < 400) openViewer(state.slide);
+  });
+})();
 
 (() => {
   const st = els.viewerStage;
-  const mid = () => {
+  const two = () => {
     const p = [...vw.pts.values()];
     return { x: (p[0].x + p[1].x) / 2, y: (p[0].y + p[1].y) / 2,
              d: Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y) };
   };
-  let lastTap = 0;
+
+  /* 어느 점을 기준으로 확대할지 — 그 점이 화면에서 제자리에 머물게 한다 */
+  function zoomAt(ns, cx, cy) {
+    const k = ns / vw.s;
+    vw.x = cx - (cx - vw.x) * k;
+    vw.y = cy - (cy - vw.y) * k;
+    vw.s = ns;
+    vwClamp();
+  }
 
   st.addEventListener('pointerdown', e => {
     st.setPointerCapture(e.pointerId);
     vw.pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    els.viewerImg.classList.remove('snap');
     if (vw.pts.size === 2) {
-      const m = mid();
-      vw.mode = 'pinch'; vw.d0 = m.d; vw.sx = vw.s; vw.px = vw.x; vw.py = vw.y;
+      const m = two();
+      vw.mode = 'pinch'; vw.d0 = m.d; vw.mx = m.x; vw.my = m.y;
+      vw.s0 = vw.s; vw.x0 = vw.x; vw.y0 = vw.y;
     } else {
-      vw.mode = 'drag'; vw.px = e.clientX - vw.x; vw.py = e.clientY - vw.y;
+      vw.mode = 'down';
+      vw.px = e.clientX; vw.py = e.clientY;
+      vw.x0 = vw.x; vw.y0 = vw.y; vw.t0 = Date.now();
     }
   });
 
   st.addEventListener('pointermove', e => {
     if (!vw.pts.has(e.pointerId)) return;
     vw.pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
     if (vw.mode === 'pinch' && vw.pts.size === 2) {
-      const m = mid();
-      vw.s = Math.min(5, Math.max(1, vw.sx * (m.d / vw.d0)));
-      applyView(false);
-    } else if (vw.mode === 'drag') {
-      vw.x = e.clientX - vw.px;
-      vw.y = e.clientY - vw.py;
-      applyView(false);
+      const m = two();
+      const ns = Math.min(6, Math.max(1, vw.s0 * (m.d / vw.d0)));
+      const k = ns / vw.s0;
+      vw.x = vw.mx - (vw.mx - vw.x0) * k;
+      vw.y = vw.my - (vw.my - vw.y0) * k;
+      vw.s = ns;
+      vwClamp(); vwDraw(false);
+      return;
+    }
+    if (vw.pts.size !== 1) return;
+
+    const dx = e.clientX - vw.px, dy = e.clientY - vw.py;
+
+    if (vw.s > 1.02) {                       // 확대 상태 — 사진을 끈다
+      vw.mode = 'pan';
+      vw.x = vw.x0 + dx; vw.y = vw.y0 + dy;
+      vwClamp(); vwDraw(false);
+      return;
+    }
+    // 원래 크기 — 첫 방향으로 좌우 넘기기인지 아래로 닫기인지 정한다
+    if (vw.mode === 'down' && Math.hypot(dx, dy) > 10)
+      vw.mode = Math.abs(dx) > Math.abs(dy) ? 'swipe' : 'dismiss';
+
+    if (vw.mode === 'swipe') {
+      vw.x = dx * 0.9; vw.y = 0; vwDraw(false);
+    } else if (vw.mode === 'dismiss') {
+      vw.x = dx * 0.5; vw.y = dy;
+      // 손을 따라 조금씩 작아지고 배경이 옅어진다
+      vw.s = Math.max(0.75, 1 - Math.abs(dy) / (innerHeight * 1.6));
+      els.viewerBg.style.opacity = String(Math.max(0.25, 1 - Math.abs(dy) / (innerHeight * 0.7)));
+      vwDraw(false);
     }
   });
 
   const up = e => {
     vw.pts.delete(e.pointerId);
-    if (vw.pts.size) return;
-    if (vw.mode === 'drag' && vw.s <= 1.02 && vw.y > 110) { closeViewer(); return; }
-    if (vw.s <= 1.02) { vw.s = 1; vw.x = 0; vw.y = 0; applyView(true); }
-    vw.mode = '';
+    if (vw.pts.size) {                       // 핀치 중 한 손가락만 뗐다
+      const p = [...vw.pts.values()][0];
+      vw.mode = 'pan'; vw.px = p.x; vw.py = p.y; vw.x0 = vw.x; vw.y0 = vw.y;
+      return;
+    }
 
-    const now = Date.now();
-    if (now - lastTap < 300) {                 // 더블탭
-      if (vw.s > 1.02) { vw.s = 1; vw.x = 0; vw.y = 0; }
-      else { vw.s = 2.5; vw.x = 0; vw.y = 0; }
-      applyView(true);
-      lastTap = 0;
-    } else lastTap = now;
+    const dt = Date.now() - vw.t0;
+    const dx = vw.x - (vw.mode === 'swipe' ? 0 : vw.x0);
+
+    if (vw.mode === 'dismiss') {
+      const fast = Math.abs(vw.y) / Math.max(dt, 1) > 0.5;   // 빠르게 튕기면 조금만 내려도 닫는다
+      if (vw.y > 110 || (fast && vw.y > 40)) { closeViewer(); return; }
+      vwReset(true); vw.mode = ''; return;
+    }
+    if (vw.mode === 'swipe') {
+      const th = Math.min(70, innerWidth * 0.18);
+      if (dx < -th) vwGo(1);
+      else if (dx > th) vwGo(-1);
+      else vwReset(true);
+      vw.mode = ''; return;
+    }
+    if (vw.mode === 'pinch' || vw.mode === 'pan') {
+      if (vw.s <= 1.02) vwReset(true);
+      else { vwClamp(); vwDraw(true); }
+      vw.mode = ''; return;
+    }
+
+    // 움직이지 않았다면 탭 — 두 번 두드리면 그 자리를 확대한다
+    if (vw.mode === 'down') {
+      const now = Date.now();
+      const near = Math.hypot(e.clientX - vw.tapX, e.clientY - vw.tapY) < 40;
+      if (now - vw.lastTap < 300 && near) {
+        if (vw.s > 1.02) vwReset(true);
+        else { zoomAt(2.5, e.clientX - innerWidth / 2, e.clientY - innerHeight / 2); vwDraw(true); }
+        vw.lastTap = 0;
+      } else {
+        vw.lastTap = now; vw.tapX = e.clientX; vw.tapY = e.clientY;
+      }
+    }
+    vw.mode = '';
   };
   st.addEventListener('pointerup', up);
   st.addEventListener('pointercancel', up);
+
+  /* 데스크톱 — 휠은 확대, 원래 크기에서 아래로 굴리면 닫는다 */
+  st.addEventListener('wheel', e => {
+    e.preventDefault();
+    if (e.ctrlKey || vw.s > 1.02) {
+      vwMeasure();
+      const ns = Math.min(6, Math.max(1, vw.s * (1 - e.deltaY / 400)));
+      zoomAt(ns, e.clientX - innerWidth / 2, e.clientY - innerHeight / 2);
+      if (vw.s <= 1.02) vwReset(true); else vwDraw(false);
+    } else if (e.deltaY > 24) closeViewer();
+  }, { passive: false });
+
+  addEventListener('resize', () => { if (!els.viewer.classList.contains('hidden')) { vwMeasure(); vwReset(false); } });
 })();
 
 /* ── 화면 전환 ────────────────────────────────────────────

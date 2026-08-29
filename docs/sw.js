@@ -2,12 +2,15 @@
    껍데기(HTML·CSS·JS·아이콘)만 캐시한다.
    해설과 사진은 매번 새로 받아야 하므로 캐시하지 않는다. */
 
-const SHELL = 'docent-shell-v42';
+const SHELL = 'docent-shell-v45';
 const FILES = ['./', './index.html', './style.css', './app.js',
                './manifest.webmanifest',
                './lib/wiki.js', './lib/llm.js', './lib/tts.js',
                './lib/photos.js', './lib/geo.js', './lib/keys.js', './lib/places.js',
-               './icons/icon-192.png', './icons/icon-512.png'];
+               './icons/icon-192.png',
+               './icons/icon-512.png', './icons/maskable-512.png',
+               './icons/apple-touch-152.png', './icons/apple-touch-167.png',
+               './icons/apple-touch-180.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(SHELL).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));

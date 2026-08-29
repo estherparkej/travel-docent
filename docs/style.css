@@ -758,22 +758,28 @@ input[type=range]:disabled{opacity:.4}
 .vrow.on .vcheck i{background:var(--acc)}
 
 /* ══════════ 사진 전체보기 ══════════ */
-.viewer{position:fixed;inset:0;z-index:60;background:#000;
-  display:grid;place-items:center;overflow:hidden;
-  animation:fade var(--dur) var(--gentle);touch-action:none}
+.viewer{position:fixed;inset:0;z-index:60;touch-action:none;overscroll-behavior:contain}
+.viewer-bg{position:absolute;inset:0;background:#000;transition:opacity .18s linear}
 .viewer.closing{opacity:0;transition:opacity .2s ease}
-.viewer-stage{width:100%;height:100%;display:grid;place-items:center;overflow:hidden}
+.viewer-stage{position:absolute;inset:0;display:grid;place-items:center;
+  overflow:hidden;touch-action:none;cursor:grab}
+.viewer-stage:active{cursor:grabbing}
 .viewer-stage img{max-width:100%;max-height:100%;object-fit:contain;
-  will-change:transform;user-select:none;-webkit-user-drag:none}
-.viewer-stage img.snap{transition:transform .28s var(--gentle)}
+  user-select:none;-webkit-user-drag:none;will-change:transform;
+  transition:opacity .18s linear}
+.viewer-stage img.snap{transition:transform .3s var(--gentle),opacity .18s linear}
 .viewer-close{position:absolute;top:calc(var(--safe-t) + 10px);right:12px;
-  width:40px;height:40px;border-radius:50%;display:grid;place-items:center;
-  background:rgba(255,255,255,.16);backdrop-filter:blur(10px);color:#FFF}
+  width:40px;height:40px;display:grid;place-items:center;border:0;border-radius:50%;
+  background:rgba(255,255,255,.16);color:#FFF;backdrop-filter:blur(8px);
+  transition:background var(--dur) var(--gentle),transform var(--dur) var(--gentle)}
 .viewer-close svg{width:22px;height:22px}
 .viewer-close:active{background:rgba(255,255,255,.28);transform:scale(.96)}
+.viewer-count{position:absolute;top:calc(var(--safe-t) + 20px);left:0;right:0;
+  text-align:center;color:rgba(255,255,255,.9);font-size:14px;font-weight:600;
+  letter-spacing:0;pointer-events:none;text-shadow:0 1px 8px rgba(0,0,0,.5)}
 .viewer-cap{position:absolute;left:0;right:0;bottom:calc(var(--safe-b) + 20px);
-  text-align:center;color:rgba(255,255,255,.75);font-size:var(--fs-xs);
-  padding:0 24px;word-break:keep-all;pointer-events:none}
+  padding:0 24px;text-align:center;color:rgba(255,255,255,.72);font-size:13px;
+  pointer-events:none;text-shadow:0 1px 8px rgba(0,0,0,.5)}
 
 
 /* 사진이 어두울 때 — 그 위에 얹힌 글자를 밝은 쪽으로 뒤집는다 */
