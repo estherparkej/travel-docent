@@ -132,7 +132,7 @@ main{position:relative;min-height:0;overflow:hidden}
 /* ── 그 위에 얹히는 것들 ─────────────────────────────────
    스와이프가 사진까지 닿도록 기본은 통과, 조작 요소만 받는다. */
 .stack{position:relative;z-index:1;display:grid;
-  grid-template-rows:auto 1fr auto;pointer-events:none}
+  grid-template-rows:1fr auto;pointer-events:none}
 .stack button,.stack .track,.stack input,.stack select{pointer-events:auto}
 
 .topbar{display:grid;grid-template-columns:1fr 36px;align-items:center;
@@ -274,10 +274,6 @@ main{position:relative;min-height:0;overflow:hidden}
   max-width:520px;margin:0 auto;
 }
 @keyframes rise{from{opacity:0;transform:translate(-50%,10px)}to{opacity:1;transform:translate(-50%,0)}}
-.mini-bar{position:absolute;left:8px;right:8px;bottom:3px;height:2px;
-  border-radius:2px;background:var(--tint2)}
-.mini-bar i{display:block;height:100%;width:0;border-radius:2px;background:var(--acc);
-  transition:width var(--dur) var(--gentle) linear}
 .mini-art{width:40px;height:40px;border-radius:8px;overflow:hidden;
   background:rgba(0,0,0,.3);display:grid;place-items:center}
 .mini-art img{width:100%;height:100%;object-fit:cover}
@@ -712,3 +708,29 @@ input[type=range]:disabled{opacity:.4}
 .keylinks a em{display:block;font-style:normal;font-size:11px;
   color:var(--dim);margin-top:1px;line-height:1.4}
 .keylinks a svg{width:18px;height:18px;color:var(--acc)}
+
+/* ══════════ 히스토리 빈 상태 ══════════ */
+.empty-state{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;min-height:58vh;padding:0 8px;
+}
+.empty-ico{width:52px;height:52px;color:var(--dim2);margin-bottom:18px;opacity:.55}
+.empty-ico svg{width:52px;height:52px}
+.empty-state h2{font-size:var(--fs-lg);font-weight:700;letter-spacing:-.02em}
+.empty-state p{margin-top:10px;font-size:var(--fs-sm);line-height:var(--lh-loose);
+  color:var(--dim);word-break:keep-all}
+.empty-state .primary-btn{width:auto;min-width:180px;padding:0 28px;margin-top:24px}
+
+/* ══════════ 축소 플레이어 — 버튼 둘레 진행 링 ══════════ */
+.mini-ring-wrap{position:relative;width:40px;height:40px;flex:none;
+  display:grid;place-items:center}
+.mini-ring{position:absolute;inset:0;width:40px;height:40px;
+  transform:rotate(-90deg);pointer-events:none}
+.mini-ring circle{fill:none;stroke-width:2.5;stroke-linecap:round}
+.mini-ring .ring-bg{stroke:var(--line)}
+.mini-ring .ring-fg{
+  stroke:var(--acc);
+  stroke-dasharray:110;            /* 2πr ≈ 110 */
+  stroke-dashoffset:110;           /* 0% 에서 시작 */
+  transition:stroke-dashoffset .2s linear;
+}

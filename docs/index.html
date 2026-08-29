@@ -88,10 +88,6 @@
     </div>
 
     <div class="stack">
-      <header class="topbar">
-        <span class="kicker" id="statusLabel">위치를 확인하는 중</span>
-      </header>
-
       <div class="filler"></div>
 
       <div class="lower">
@@ -158,8 +154,17 @@
       <h1>히스토리</h1>
     </header>
     <ul id="logList" class="log"></ul>
-    <p class="empty" id="logEmpty">아직 들은 곳이 없어요.<br>검색에서 장소를 찾아 보세요.</p>
-    <button id="clearLog" class="textlink">기록 지우기</button>
+
+    <div class="empty-state hidden" id="logEmpty">
+      <span class="empty-ico">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="8.6"/><path d="M12 7.4V12l3.2 1.9"/></svg>
+      </span>
+      <h2>아직 들은 곳이 없어요</h2>
+      <p>가고 싶은 곳을 검색하면<br>그 자리의 이야기를 들려드려요</p>
+      <button class="primary-btn" id="goSearch">장소 검색하기</button>
+    </div>
+
+    <button id="clearLog" class="textlink hidden">기록 삭제하기</button>
   </section>
 
   <!-- ══════════ 설정 ══════════ -->
@@ -244,13 +249,18 @@
 
 <!-- ══════════ 미니 플레이어 ══════════ -->
 <div class="mini hidden" id="mini">
-  <div class="mini-bar"><i id="miniFill"></i></div>
   <div class="mini-art"><img id="miniImg" alt="" hidden><div class="eq" id="miniEq" hidden><i></i><i></i><i></i></div></div>
   <div class="mini-meta">
     <div class="mini-title" id="miniTitle">여행 도슨트</div>
     <div class="mini-sub" id="miniSub">재생할 곳을 찾는 중</div>
   </div>
-  <button id="miniPlay" class="mini-btn" aria-label="재생"></button>
+  <div class="mini-ring-wrap">
+    <svg class="mini-ring" viewBox="0 0 40 40" aria-hidden="true">
+      <circle class="ring-bg" cx="20" cy="20" r="17.5"/>
+      <circle class="ring-fg" id="miniRing" cx="20" cy="20" r="17.5"/>
+    </svg>
+    <button id="miniPlay" class="mini-btn" aria-label="재생"></button>
+  </div>
 </div>
 
 <!-- ══════════ 플로팅 캡슐 내비 ══════════ -->

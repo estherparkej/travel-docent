@@ -16,7 +16,8 @@ window.addEventListener('error', e => window.__boot.push(e.message + ' @' + e.li
 
 const $ = id => document.getElementById(id);
 const els = {
-  status: $('statusLabel'), name: $('placeName'), addr: $('placeAddr'),
+  // 좌측 상단 상태 문구는 없앴다. 로딩은 버튼 스피너가 알려준다.
+  status: $('statusLabel') || document.createElement('span'), name: $('placeName'), addr: $('placeAddr'),
   chip: $('providerChip'),
   rail: $('rail'), dots: $('dots'), lower: document.querySelector('.lower'),
   times: $('times'),
@@ -35,7 +36,7 @@ const els = {
   sugList: $('sugList'), searchForm: $('searchForm'), searchInput: $('searchInput'),
   logList: $('logList'), logEmpty: $('logEmpty'),
   mini: $('mini'), miniImg: $('miniImg'), miniEq: $('miniEq'), miniTitle: $('miniTitle'),
-  miniSub: $('miniSub'), miniPlay: $('miniPlay'), miniFill: $('miniFill'),
+  miniSub: $('miniSub'), miniPlay: $('miniPlay'), miniRing: $('miniRing'),
   settings: $('settings'), lengthSeg: $('lengthSeg'), toneList: $('toneList'),
   voiceSel: $('voiceSel'), preview: $('previewVoice'), voiceHint: $('voiceHint'),
   engineSeg: $('engineSeg'), quotaNote: $('quotaNote'), quotaTxt: $('quotaTxt'),
@@ -128,6 +129,13 @@ const P = {
 function paintRange(el) {
   const min = +el.min || 0, max = +el.max || 100;
   el.style.setProperty('--p', ((+el.value - min) / (max - min) * 100).toFixed(1) + '%');
+}
+
+/* SVG 요소를 확실히 보이고 숨긴다 */
+function showIcon(el, on) {
+  if (!el) return;
+  if (on) el.removeAttribute('hidden');
+  else el.setAttribute('hidden', '');
 }
 
 const CPS = 5.4;
@@ -491,23 +499,25 @@ function paint() {
   const dur = total(), cur = Math.min(elapsed(), dur);
   const pct = dur ? (cur / dur) * 100 : 0;
   if (!els.track.classList.contains('drag')) els.fill.style.width = pct + '%';
-  els.miniFill.style.width = pct + '%';
+  els.miniRing.style.strokeDashoffset = (110 * (1 - pct / 100)).toFixed(1);
   if (!els.track.classList.contains('drag')) els.tCur.textContent = fmt(cur);
   els.tDur.textContent = (state.streaming && !dur) ? '--:--' : fmt(dur);
 
   const busy = (state.streaming && !P.lines.length) || P.waiting;   // 대본·목소리를 만드는 중
   const on = P.playing && !P.paused;
   const replay = P.ended && !on;
-  els.icoWait.hidden = !busy;
-  els.icoReplay.hidden = busy || !replay;
-  els.icoPlay.hidden = busy || on || replay;
-  els.icoPause.hidden = busy || !on;
+  // <svg> 는 HTML 요소가 아니라 .hidden 프로퍼티가 없다.
+  // 속성을 직접 넣고 빼야 실제로 숨겨지고 드러난다.
+  showIcon(els.icoWait, busy);
+  showIcon(els.icoReplay, !busy && replay);
+  showIcon(els.icoPlay, !busy && !on && !replay);
+  showIcon(els.icoPause, !busy && on);
   els.play.setAttribute('aria-label', on ? '일시정지' : replay ? '처음부터 다시' : '재생');
   els.miniPlay.innerHTML = busy ? ICO.spin : (on ? ICO.pause : (P.ended ? ICO.replay : ICO.play));
 
   els.lower.classList.toggle('loading', busy);
   els.status.classList.toggle('mute', on);
-  els.miniEq.hidden = !on || !!state.image;
+  showIcon(els.miniEq, on && !state.image);
   els.prev.disabled = P.idx <= 0;
   els.next.disabled = P.idx < 0 || P.idx >= P.lines.length - 1;
   els.again.disabled = state.streaming;
@@ -750,7 +760,9 @@ function remember(place) {
 
 function renderLog() {
   const list = state.heard.slice().reverse();
-  els.logEmpty.classList.toggle('hidden', !!list.length);
+  const empty = !list.length;
+  els.logEmpty.classList.toggle('hidden', !empty);
+  $('clearLog').classList.toggle('hidden', empty);
   els.logList.innerHTML = list.map((_, i) => `
     <li><span class="n">${String(list.length - i).padStart(2, '0')}</span>
         <span class="t"></span>
@@ -1138,6 +1150,8 @@ els.accHead.onclick = () => {
   els.accHead.setAttribute('aria-expanded', String(!open));
   els.accBody.classList.toggle('hidden', open);
 };
+$('goSearch').onclick = () => goto('search');
+
 $('clearLog').onclick = () => {
   state.heard = []; localStorage.removeItem('heard'); renderLog();
   if (homeReady) renderRecent();
