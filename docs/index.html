@@ -96,6 +96,12 @@
         <h1 class="title" id="placeName">—</h1>
         <p class="byline"><span id="providerChip">여행 도슨트</span><span id="placeAddr"></span></p>
 
+        <div class="modes">
+          <button class="mode on" data-mode="full">전체</button>
+          <button class="mode" data-mode="summary">요약</button>
+          <span class="mode-badge hidden" id="modeBadge">요약본</span>
+        </div>
+
         <div class="peek">
           <span class="peek-line" id="peekLine">재생을 누르면 이 자리의 이야기가 시작돼요</span>
           <button class="ico peek-more" id="peek" aria-label="해설 전체 보기">
@@ -177,10 +183,10 @@
     </header>
 
       <div class="field">
-        <span class="flabel">목소리 종류</span>
+        <span class="flabel">보이스 종류</span>
         <div class="seg" id="engineSeg">
-          <button data-v="device" class="on">기기 목소리</button>
-          <button data-v="google">구글 목소리</button>
+          <button data-v="device" class="on">기본</button>
+          <button data-v="google">구글 제공</button>
         </div>
         <div class="callout hidden" id="quotaNote">
           <span class="callout-ico">
@@ -192,7 +198,7 @@
 
       <div class="field" id="deviceField">
         <button class="acc-head" id="voiceAccHead" aria-expanded="false">
-          <span class="flabel">음성 선택</span>
+          <span class="flabel">보이스 선택</span>
           <span class="acc-right">
             <b id="voiceNow">유나</b>
             <span class="ico" aria-hidden="true">
@@ -207,7 +213,7 @@
             미리 듣기
           </button>
           <p class="hint hidden" id="voiceHint">
-            더 사람 목소리에 가깝게 하려면 <b>프리미엄 한국어 음성</b>을 한 번만 내려받으세요.<br>
+            더 사람 목소리에 가깝게 하려면 <b>프리미엄 한국어 보이스</b>을 한 번만 내려받으세요.<br>
             <em>맥</em> 시스템 설정 → 손쉬운 사용 → 음성 콘텐츠 → 시스템 음성 → 음성 관리 → 한국어 → <b>유나(프리미엄)</b><br>
             <em>아이폰</em> 설정 → 손쉬운 사용 → 말하기 콘텐츠 → 음성 → 한국어 → <b>유나(프리미엄)</b>
           </p>
@@ -215,7 +221,7 @@
       </div>
 
       <div class="field hidden" id="googleField">
-        <span class="flabel">구글 음성 선택</span>
+        <span class="flabel">구글 보이스</span>
         <div class="voices" id="gvoiceList"></div>
       </div>
 
@@ -326,6 +332,17 @@
       <button id="saveKeys" class="primary-btn">저장</button>
     </div>
   </div>
+</div>
+
+<!-- ══════════ 사진 전체보기 ══════════ -->
+<div class="viewer hidden" id="viewer">
+  <div class="viewer-stage" id="viewerStage">
+    <img id="viewerImg" alt="" draggable="false">
+  </div>
+  <button class="viewer-close" id="viewerClose" aria-label="닫기">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 6 12 12M18 6 6 18"/></svg>
+  </button>
+  <div class="viewer-cap" id="viewerCap"></div>
 </div>
 
 <script type="module" src="./app.js"></script>

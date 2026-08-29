@@ -29,6 +29,9 @@ const els = {
   tCur: $('tCur'), tDur: $('tDur'),
   peek: $('peek'), peekLine: $('peekLine'),
   transcript: $('transcript'), scriptPanel: $('scriptPanel'), scriptPlace: $('scriptPlace'),
+  modes: document.querySelector('.modes'), modeBadge: $('modeBadge'),
+  viewer: $('viewer'), viewerImg: $('viewerImg'), viewerStage: $('viewerStage'),
+  viewerCap: $('viewerCap'),
   heroWrap: $('heroWrap'), heroTrack: $('heroTrack'), heroDots: $('heroDots'),
   krChips: $('krChips'), krList: $('krList'),
   wwChips: $('wwChips'), wwList: $('wwList'), toTop: $('toTop'),
@@ -114,6 +117,7 @@ const state = {
   heard: JSON.parse(localStorage.getItem('heard') || '[]'),
   streaming: false, unlocked: false, resolved: '', view: 'player', scriptOpen: false,
   manual: '',   // 검색이나 카드로 고른 장소
+  mode: 'full',  // full | summary
   fallback: false, quotaAt: 0,
   shots: [], slide: 0, railT: null, followT: 0,
 };
@@ -265,7 +269,7 @@ function fetchAudio(text) {
 /* 문장을 묶음으로 나눈다.
    첫 묶음은 작게(빨리 소리가 나야 하니까), 뒤로 갈수록 크게(요청 수를 아끼려고).
    이미 재생에 들어간 묶음은 경계를 바꾸지 않는다. */
-const capFor = n => (n === 0 ? 55 : n === 1 ? 130 : CHUNK_CHARS);
+const capFor = n => (n === 0 ? 32 : n === 1 ? 110 : CHUNK_CHARS);
 
 function buildChunks() {
   const locked = P.chunks.filter(c => c.locked);
@@ -647,7 +651,8 @@ async function narrate({ again = false } = {}) {
       .then(shots => { if (shots.length) setPhotos(shots); })
       .catch(() => {});
 
-    for await (const text of llm.stream(data, { length: prefs.length, heard: state.heard, again })) {
+    const len = state.mode === 'summary' ? 'short' : prefs.length;
+    for await (const text of llm.stream(data, { length: len, heard: state.heard, again })) {
       got = true;
       buf += text;
       const { sentences, rest } = drainSentences(buf);
@@ -658,7 +663,8 @@ async function narrate({ again = false } = {}) {
     if (buf.trim()) addLine(buf.trim());
     if (got) remember(state.resolved || state.place || manual);
   } catch (e) {
-    showError('해설을 받아오지 못했어요. ' + e.message);
+    showError('해설을 불러오지 못했어요. 인터넷 연결을 확인하고 다시 눌러 주세요.');
+    console.error(e);
   } finally {
     state.streaming = false;
     if (!P.speaking) advance();
@@ -755,7 +761,6 @@ function remember(place) {
   state.heard = state.heard.slice(-40);
   localStorage.setItem('heard', JSON.stringify(state.heard));
   renderLog();
-  if (homeReady) renderRecent();
 }
 
 function renderLog() {
@@ -921,7 +926,7 @@ function buildHero() {
     <div class="hslide" data-place="${b.place}">
       <img alt="" loading="${i < 2 ? 'eager' : 'lazy'}">
       <span class="hveil"></span>
-      <span class="htxt"><span class="htag">${b.tag}</span><strong>${b.place}</strong></span>
+      <span class="htxt"><span class="htag">${b.tag}</span><em class="hlead">${b.lead}</em><strong>${b.place}</strong></span>
     </div>`).join('');
   els.heroDots.innerHTML = BANNERS.map((_, i) =>
     `<i class="${i ? '' : 'on'}"></i>`).join('');
@@ -1052,6 +1057,110 @@ els.searchForm.onsubmit = e => {
   playPlace(q);
 };
 
+/* ── 요약 / 전체 ──────────────────────────────────────────
+   같은 자리를 짧게도, 길게도 들을 수 있게. */
+function applyMode() {
+  [...els.modes.querySelectorAll('.mode')].forEach(b =>
+    b.classList.toggle('on', b.dataset.mode === state.mode));
+  els.modeBadge.classList.toggle('hidden', state.mode !== 'summary');
+}
+
+els.modes.onclick = e => {
+  const b = e.target.closest('.mode');
+  if (!b || b.dataset.mode === state.mode) return;
+  state.mode = b.dataset.mode;
+  applyMode();
+  if (state.manual || state.pos) narrate();   // 고른 길이로 다시 들려준다
+};
+
+/* ── 사진 전체보기 ────────────────────────────────────────
+   더블탭·핀치로 확대, 아래로 쓸어내리면 닫힌다. */
+const vw = { s: 1, x: 0, y: 0, sx: 1, px: 0, py: 0, d0: 0, mode: '', pts: new Map() };
+
+function applyView(anim) {
+  els.viewerImg.classList.toggle('snap', !!anim);
+  els.viewerImg.style.transform =
+    `translate3d(${vw.x}px,${vw.y}px,0) scale(${vw.s})`;
+}
+
+function openViewer() {
+  const shot = state.shots[state.slide];
+  if (!shot) return;
+  els.viewerImg.src = shot.url;
+  els.viewerCap.textContent = shot.credit && shot.credit.startsWith('Pexels')
+    ? shot.credit : (shot.title || '');
+  vw.s = 1; vw.x = 0; vw.y = 0;
+  applyView(false);
+  els.viewer.classList.remove('hidden', 'closing');
+}
+
+function closeViewer() {
+  els.viewer.classList.add('closing');
+  setTimeout(() => {
+    els.viewer.classList.add('hidden');
+    els.viewer.classList.remove('closing');
+  }, 200);
+}
+$('viewerClose').onclick = closeViewer;
+
+/* 사진 영역을 누르면 열린다 (넘기는 동작과 구분) */
+els.heroWrap.addEventListener('click', () => {
+  if (Math.abs(hero.dx) < 8 && state.shots.length) openViewer();
+});
+
+(() => {
+  const st = els.viewerStage;
+  const mid = () => {
+    const p = [...vw.pts.values()];
+    return { x: (p[0].x + p[1].x) / 2, y: (p[0].y + p[1].y) / 2,
+             d: Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y) };
+  };
+  let lastTap = 0;
+
+  st.addEventListener('pointerdown', e => {
+    st.setPointerCapture(e.pointerId);
+    vw.pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (vw.pts.size === 2) {
+      const m = mid();
+      vw.mode = 'pinch'; vw.d0 = m.d; vw.sx = vw.s; vw.px = vw.x; vw.py = vw.y;
+    } else {
+      vw.mode = 'drag'; vw.px = e.clientX - vw.x; vw.py = e.clientY - vw.y;
+    }
+  });
+
+  st.addEventListener('pointermove', e => {
+    if (!vw.pts.has(e.pointerId)) return;
+    vw.pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (vw.mode === 'pinch' && vw.pts.size === 2) {
+      const m = mid();
+      vw.s = Math.min(5, Math.max(1, vw.sx * (m.d / vw.d0)));
+      applyView(false);
+    } else if (vw.mode === 'drag') {
+      vw.x = e.clientX - vw.px;
+      vw.y = e.clientY - vw.py;
+      applyView(false);
+    }
+  });
+
+  const up = e => {
+    vw.pts.delete(e.pointerId);
+    if (vw.pts.size) return;
+    if (vw.mode === 'drag' && vw.s <= 1.02 && vw.y > 110) { closeViewer(); return; }
+    if (vw.s <= 1.02) { vw.s = 1; vw.x = 0; vw.y = 0; applyView(true); }
+    vw.mode = '';
+
+    const now = Date.now();
+    if (now - lastTap < 300) {                 // 더블탭
+      if (vw.s > 1.02) { vw.s = 1; vw.x = 0; vw.y = 0; }
+      else { vw.s = 2.5; vw.x = 0; vw.y = 0; }
+      applyView(true);
+      lastTap = 0;
+    } else lastTap = now;
+  };
+  st.addEventListener('pointerup', up);
+  st.addEventListener('pointercancel', up);
+})();
+
 /* ── 화면 전환 ────────────────────────────────────────────
    홈 · 검색 · 플레이어 · 히스토리 · 설정 */
 const VIEWS = ['home', 'search', 'player', 'history', 'settings'];
@@ -1154,7 +1263,6 @@ $('goSearch').onclick = () => goto('search');
 
 $('clearLog').onclick = () => {
   state.heard = []; localStorage.removeItem('heard'); renderLog();
-  if (homeReady) renderRecent();
 };
 
 els.lengthSeg.onclick = e => {
@@ -1208,8 +1316,11 @@ function renderGVoices() {
       '<p class="empty">AI 키를 넣으면 여덟 가지 구글 목소리를 고를 수 있어요.</p>';
     return;
   }
+  // 왼쪽 동그라미로 고르고, 오른쪽 버튼으로 들어본다
   els.gvoiceList.innerHTML = gvoices.map(v => `
-    <div class="vrow${v.id === prefs.gvoice ? ' on' : ''}" data-v="${v.id}">
+    <div class="vrow pick${v.id === prefs.gvoice ? ' on' : ''}" data-v="${v.id}"
+         role="radio" aria-checked="${v.id === prefs.gvoice}" tabindex="0">
+      <span class="vcheck" aria-hidden="true"><i></i></span>
       <span class="vtext"><b>${v.label}</b><em>${v.desc}</em></span>
       <button class="vplay" data-v="${v.id}" aria-label="${v.label} 들어보기">${ICO_PLAY_SM}</button>
     </div>`).join('');
@@ -1226,8 +1337,11 @@ function markVoiceButtons() {
     b.innerHTML = loading ? ICO_SPIN_SM : playing ? ICO_PAUSE_SM : ICO_PLAY_SM;
     b.classList.toggle('playing', playing || loading);
   });
-  [...els.gvoiceList.querySelectorAll('.vrow')].forEach(r =>
-    r.classList.toggle('on', r.dataset.v === prefs.gvoice));
+  [...els.gvoiceList.querySelectorAll('.vrow')].forEach(r => {
+    const on = r.dataset.v === prefs.gvoice;
+    r.classList.toggle('on', on);
+    r.setAttribute('aria-checked', String(on));
+  });
 }
 
 function stopPreview() {
@@ -1236,13 +1350,12 @@ function stopPreview() {
   markVoiceButtons();
 }
 
-async function playVoiceSample(id) {
+async function playVoiceSample(id, alsoPick = true) {
   if (previewOf === id && !previewEl.paused) { stopPreview(); return; }
   stopPreview();
   unlockAudio();
 
-  prefs.gvoice = id;              // 들어본 목소리를 그대로 고른 것으로 본다
-  savePrefs();
+  if (alsoPick) { prefs.gvoice = id; savePrefs(); }
   previewOf = id;
   previewLoading = id;            // 만드는 동안 스피너
   markVoiceButtons();
@@ -1283,9 +1396,13 @@ els.engineSeg.onclick = e => {
 };
 
 els.gvoiceList.onclick = e => {
-  const b = e.target.closest('.vplay');
-  if (!b) return;                 // 재생 버튼 밖은 반응하지 않는다
-  playVoiceSample(b.dataset.v);
+  const play = e.target.closest('.vplay');
+  if (play) { playVoiceSample(play.dataset.v, false); return; }   // 들어보기만
+  const row = e.target.closest('.vrow');
+  if (!row) return;
+  prefs.gvoice = row.dataset.v;                                   // 이 보이스로 정한다
+  savePrefs();
+  markVoiceButtons();
 };
 
 (async () => {
@@ -1401,6 +1518,7 @@ els.pitchVal.textContent = (+prefs.pitch).toFixed(2).replace(/0$/, '');
 paintRange(els.rateSel); paintRange(els.pitchSel);
 [...els.lengthSeg.children].forEach(b => b.classList.toggle('on', b.dataset.v === prefs.length));
 renderTones();
+applyMode();
 els.miniPlay.innerHTML = ICO.play;
 setPhotos([]);          // 첫 화면에도 자리표시자를 둔다
 goto('home');           // 처음 열면 홈부터
