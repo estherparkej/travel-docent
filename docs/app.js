@@ -29,7 +29,7 @@ const els = {
   tCur: $('tCur'), tDur: $('tDur'),
   peek: $('peek'), peekLine: $('peekLine'),
   transcript: $('transcript'), scriptPanel: $('scriptPanel'), scriptPlace: $('scriptPlace'),
-  modes: document.querySelector('.modes'), modeBadge: $('modeBadge'),
+  modes: document.querySelector('.modes'),
   viewer: $('viewer'), viewerImg: $('viewerImg'), viewerStage: $('viewerStage'),
   viewerCap: $('viewerCap'),
   heroWrap: $('heroWrap'), heroTrack: $('heroTrack'), heroDots: $('heroDots'),
@@ -152,12 +152,88 @@ const fmt = s => {
 /* 바탕은 흰색 그라데이션으로 고정한다.
    예전엔 사진에서 색을 뽑아 배경에 깔았지만, 사진마다 배경색이 널뛰고
    글자색까지 뒤집혀야 해서 읽기가 불안정했다. 지금은 사진만 흰 바탕으로 녹인다. */
-function applyArtColor() { /* 의도적으로 아무것도 하지 않는다 */ }
+/* 사진 위에 얹힌 글자를 읽히게 한다.
+   사진은 아래로 갈수록 흰 배경에 녹아 사라지므로, 글자가 실제로 놓이는
+   띠만 골라내고 거기에 남아 있는 사진의 농도만큼만 섞어서 밝기를 잰다. */
+const FADE = [[0,1],[.44,1],[.46,.96],[.54,.73],[.60,.41],[.66,.14],
+              [.71,.03],[.75,0],[1,0]];
+function fadeAt(t) {
+  for (let i = 1; i < FADE.length; i++) {
+    const [x1, a1] = FADE[i], [x0, a0] = FADE[i - 1];
+    if (t <= x1) return a0 + (a1 - a0) * ((t - x0) / (x1 - x0) || 0);
+  }
+  return 0;
+}
+
+let artToken = 0;
+function applyArtColor(url) {
+  const art = document.getElementById('rail');
+  const view = document.getElementById('view-player');
+  if (!art || !view) return;
+  const clear = () => view.classList.remove('on-dark', 'on-busy');
+  if (!url) { clear(); return; }
+
+  const me = ++artToken;
+  const im = new Image();
+  im.crossOrigin = 'anonymous';
+  im.onerror = () => { if (me === artToken) clear(); };
+  im.onload = () => {
+    if (me !== artToken) return;
+    try {
+      const box = art.getBoundingClientRect();
+      const t = document.querySelector('.title');
+      const p = document.querySelector('.peek-line') || t;
+      if (!t || !box.height) return;
+      const top = (t.getBoundingClientRect().top - box.top) / box.height;
+      const bot = (p.getBoundingClientRect().bottom - box.top) / box.height;
+
+      const W = 24, H = 40;
+      const c = document.createElement('canvas');
+      c.width = W; c.height = H;
+      const g = c.getContext('2d', { willReadFrequently: true });
+      const sc = Math.max(W / im.width, H / im.height);
+      const dw = im.width * sc, dh = im.height * sc;
+      g.drawImage(im, (W - dw) / 2, (H - dh) * 0.4, dw, dh);
+      const d = g.getImageData(0, 0, W, H).data;
+
+      const lums = [];
+      for (let y = 0; y < H; y++) {
+        const r = (y + .5) / H;
+        if (r < top || r > bot) continue;
+        const a = fadeAt(r);
+        for (let x = 0; x < W; x++) {
+          const i = (y * W + x) * 4;
+          const l = (.2126 * d[i] + .7152 * d[i + 1] + .0722 * d[i + 2]) / 255;
+          lums.push(l * a + (1 - a));   // 남은 농도만큼만 사진, 나머지는 흰 종이
+        }
+      }
+      if (!lums.length) return;
+      lums.sort((x, y) => x - y);
+      const at = q => lums[Math.min(lums.length - 1, Math.floor(lums.length * q))];
+      const lo = at(0.10), hi = at(0.90);
+
+      /* 평균만 보면 안 된다. 밝은 난간과 어두운 처마가 섞인 사진은
+         평균이 밝게 나오지만 검은 글자가 처마 위에서 사라진다.
+         그래서 가장 어두운 쪽(하위 10%)과 밝은 쪽(상위 10%)을 각각 본다. */
+      const dark = hi <= 0.25;              // 어디를 봐도 어둡다 → 흰 글자
+      /* 경계값 하나로 켜고 끄면 사진을 넘길 때마다 바탕이 깜빡인다.
+         들어갈 때와 나올 때의 기준을 달리 둔다. */
+      const was = view.classList.contains('on-busy');
+      const busy = !dark && (was ? lo < 0.58 : lo < 0.48);
+      view.classList.toggle('on-dark', dark);
+      view.classList.toggle('on-busy', busy);
+      state.artLum = { lo: +lo.toFixed(2), hi: +hi.toFixed(2), dark, busy };
+    } catch (_) { /* 다른 출처의 사진이면 읽을 수 없다 — 원래 색을 쓴다 */ }
+  };
+  im.src = url;
+}
+
 
 /* ── 목소리 ──────────────────────────────────────────────── */
 /* 애플 기기의 한국어 음성 중 도슨트로 쓸 수 있는 건 사실상 유나 하나뿐이다.
    Eddy·Grandma·Rocko 같은 것들은 장난감 음성이라 목록에서 뺀다. */
-const NOVELTY = /eddy|flo|grandma|grandpa|reed|rocko|sandy|shelley|bells|bubbles|jester|organ|superstar|trinoids|whisper|wobble|boing|bahh|zarvox|cellos|albert|bad news|good news|deranged|hysterical|junior|ralph|fred|kathy|princess|novelty/i;
+/* 애플이 넣어둔 장난감 음성만 거른다. 그 밖에는 모두 목록에 남긴다. */
+const NOVELTY = /^(eddy|flo|grandma|grandpa|reed|rocko|sandy|shelley|bells|bubbles|jester|organ|superstar|trinoids|whisper|wobble|boing|bahh|zarvox|cellos|albert|bad news|good news|deranged|hysterical|junior|ralph|fred|kathy|princess|novelty|trinoids)\b/i;
 const WARM = ['유나', 'yuna', 'sora', 'nara', 'heami', 'sunhi', 'seoyeon', 'jiwon'];
 
 function voiceScore(v) {
@@ -886,6 +962,8 @@ function cardHTML(place, sub) {
 
 function fillCards(host, places, subs) {
   host.innerHTML = places.map((p, i) => cardHTML(p, subs && subs[i])).join('');
+  // 앞쪽 두어 개는 미리 받아둔다. 누르는 순간 기다림이 없다.
+  places.slice(0, 2).forEach(p => wiki.gather({ manual: p }).catch(() => {}));
   [...host.children].forEach(btn => {
     const name = btn.dataset.place;
     btn.onclick = () => playPlace(name);
@@ -926,7 +1004,7 @@ function buildHero() {
     <div class="hslide" data-place="${b.place}">
       <img alt="" loading="${i < 2 ? 'eager' : 'lazy'}">
       <span class="hveil"></span>
-      <span class="htxt"><span class="htag">${b.tag}</span><em class="hlead">${b.lead}</em><strong>${b.place}</strong></span>
+      <span class="htxt"><span class="htag">${b.tag}</span><strong>${b.lead}, ${b.place}</strong></span>
     </div>`).join('');
   els.heroDots.innerHTML = BANNERS.map((_, i) =>
     `<i class="${i ? '' : 'on'}"></i>`).join('');
@@ -1024,6 +1102,7 @@ function renderHome() {
   
   buildHero();
   heroDrag();
+  wiki.gather({ manual: BANNERS[new Date().getDate() % BANNERS.length].place }).catch(() => {});
   fillCards(els.pickList, PICKS.slice(0, 5));
   buildRegion(KR, els.krChips, els.krList);
   buildRegion(WW, els.wwChips, els.wwList);
@@ -1062,7 +1141,6 @@ els.searchForm.onsubmit = e => {
 function applyMode() {
   [...els.modes.querySelectorAll('.mode')].forEach(b =>
     b.classList.toggle('on', b.dataset.mode === state.mode));
-  els.modeBadge.classList.toggle('hidden', state.mode !== 'summary');
 }
 
 els.modes.onclick = e => {

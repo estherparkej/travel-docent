@@ -58,6 +58,9 @@
 }
 
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+/* 한국어는 낱말 한가운데서 끊으면 읽는 속도가 눈에 띄게 떨어진다.
+   어절 경계에서만 넘기고, 한 어절이 줄보다 길 때만 예외로 끊는다. */
+*{word-break:keep-all;overflow-wrap:break-word;line-break:normal}
 html,body{height:100%;overflow:hidden;overscroll-behavior:none}
 body{
   color:var(--ink);
@@ -158,10 +161,10 @@ main{position:relative;min-height:0;overflow:hidden}
 .lower{padding:0 var(--gap) var(--navclear)}
 
 /* 캐러셀 인디케이터 */
-.dots{display:flex;gap:5px;height:4px;margin-bottom:20px}
-.dots i{width:4px;height:4px;border-radius:99px;background:var(--tint2);
-  transition:width var(--dur) var(--gentle),background var(--dur) var(--gentle)}
-.dots i.on{width:16px;background:var(--acc);opacity:1}
+.dots{display:flex;gap:7px;height:7px;margin-bottom:18px}
+.dots i{width:7px;height:7px;border-radius:50%;background:var(--tint2);
+  transition:background var(--dur) var(--gentle),transform var(--dur) var(--gentle)}
+.dots i.on{background:var(--acc);opacity:1;transform:scale(1.15)}
 
 .title{
   font-size:var(--fs-2xl);font-weight:700;line-height:var(--lh-tight);
@@ -535,8 +538,7 @@ input[type=range]:disabled{opacity:.4}
 }
 
 .htxt{position:absolute;left:var(--gap);right:var(--gap);bottom:52px;color:#FFF}
-.hlead{display:block;font-size:var(--fs-sm);font-weight:500;opacity:.9;margin-bottom:6px;
-  text-shadow:0 1px 14px rgba(0,0,0,.5)}
+
 .htag{
   display:inline-block;font-size:11px;font-weight:600;letter-spacing:.08em;
   padding:5px 11px;border-radius:999px;margin-bottom:14px;
@@ -559,9 +561,9 @@ input[type=range]:disabled{opacity:.4}
 .chiprow{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;
   margin:0 calc(var(--gap)*-1) 8px;padding:0 var(--gap) 2px}
 .chiprow::-webkit-scrollbar{display:none}
-.rchip{flex:0 0 auto;padding:5px 16px;border-radius:999px;
-  background:var(--tint);color:var(--dim);font-size:var(--fs-xs);font-weight:600;
-  line-height:1.6;transition:background var(--dur) var(--gentle),color var(--dur) var(--gentle)}
+.rchip{flex:0 0 auto;padding:8px 18px;border-radius:999px;
+  background:var(--tint);color:var(--dim);font-size:var(--fs-sm);font-weight:600;
+  line-height:1.5;transition:background var(--dur) var(--gentle),color var(--dur) var(--gentle)}
 .rchip.on{background:var(--ink);color:#FFF}
 .rchip:active{transform:scale(.96)}
 
@@ -743,9 +745,7 @@ input[type=range]:disabled{opacity:.4}
   color:var(--dim);font-size:var(--fs-xs);font-weight:600;
   transition:background var(--dur) var(--gentle),color var(--dur) var(--gentle)}
 .mode.on{background:var(--ink);color:#FFF}
-.mode-badge{margin-left:2px;padding:5px 10px;border-radius:999px;
-  background:var(--acc-soft);color:var(--acc-deep);
-  font-size:var(--fs-2xs);font-weight:700}
+
 
 /* ══════════ 구글 보이스 — 듣기와 선택을 나눈다 ══════════ */
 .vrow.pick{grid-template-columns:22px minmax(0,1fr) 36px;cursor:pointer}
@@ -774,3 +774,28 @@ input[type=range]:disabled{opacity:.4}
 .viewer-cap{position:absolute;left:0;right:0;bottom:calc(var(--safe-b) + 20px);
   text-align:center;color:rgba(255,255,255,.75);font-size:var(--fs-xs);
   padding:0 24px;word-break:keep-all;pointer-events:none}
+
+
+/* 사진이 어두울 때 — 그 위에 얹힌 글자를 밝은 쪽으로 뒤집는다 */
+.on-dark .dots i{background:rgba(255,255,255,.5)}
+.on-dark .dots i.on{background:#FFF}
+.on-dark .title{color:#FFF;text-shadow:0 1px 16px rgba(0,0,0,.55)}
+.on-dark .byline{color:rgba(255,255,255,.85);text-shadow:0 1px 12px rgba(0,0,0,.5)}
+.on-dark .byline #providerChip{color:#FFF}
+.on-dark .peek-line{color:rgba(255,255,255,.9);text-shadow:0 1px 12px rgba(0,0,0,.5)}
+.on-dark .peek-more{color:rgba(255,255,255,.85)}
+.on-dark .mode{background:rgba(255,255,255,.18);color:rgba(255,255,255,.9)}
+.on-dark .mode.on{background:#FFF;color:var(--ink)}
+
+
+/* 밝은 난간과 어두운 처마가 한 화면에 섞이면 어떤 글자색도 안전하지 않다.
+   이럴 때만 글자 자리에 흰 바탕을 깔아 준다. 사진 전체를 흐리지는 않는다. */
+.lower{position:relative}
+.lower::before{
+  content:"";position:absolute;left:0;right:0;top:-56px;bottom:0;z-index:-1;
+  pointer-events:none;opacity:0;transition:opacity .38s var(--ease,ease);
+  background:linear-gradient(to bottom,
+    rgba(255,255,255,0) 0%, rgba(255,255,255,.62) 18%,
+    rgba(255,255,255,.88) 38%, rgba(255,255,255,.97) 56%, #FFF 70%);
+}
+.on-busy .lower::before{opacity:1}
