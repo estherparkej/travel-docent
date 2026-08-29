@@ -119,30 +119,50 @@ export async function gather({ lat, lon, manual }) {
   return job;
 }
 
+/* 한 번의 호출로 검색·본문·대표사진을 함께 받는다.
+   예전엔 검색 → 본문 두 번 오갔는데, generator 를 쓰면 왕복이 한 번이면 된다. */
 async function gatherOnce({ lat, lon, manual }) {
-  let titles, near = [];
-  if (manual) {
-    titles = await search(manual);
-  } else {
-    near = await nearby(lat, lon);
-    titles = near.map(x => x.title);
-  }
-  if (!titles.length)
+  const base = {
+    action: 'query',
+    prop: 'extracts|pageimages',
+    explaintext: '1', exintro: '1', exlimit: 'max',
+    piprop: 'thumbnail', pithumbsize: 900,
+  };
+  const p = manual
+    ? { ...base, generator: 'search', gsrsearch: manual, gsrlimit: 5 }
+    : { ...base, generator: 'geosearch', ggscoord: `${lat}|${lon}`,
+        ggsradius: 1500, ggslimit: 6 };
+
+  let pages = [];
+  try {
+    const d = await get(p);
+    pages = d.query?.pages || [];
+  } catch (_) { pages = []; }
+
+  // 검색은 관련도순, 좌표는 가까운 순으로 돌려준다
+  pages.sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
+
+  if (!pages.length)
     return { place: manual || '', primary: '', image: '', sources: [], nearby: [] };
 
-  const primary = titles[0];
-  const distOf = Object.fromEntries(near.map(x => [x.title, x.dist]));
-
-  const [main, rest, image] = await Promise.all([
-    extracts([primary], false, 2600),
-    extracts(titles.slice(1, 4), true, 500),
-    pageImage(primary),
-  ]);
-
+  const primary = pages[0];
   const sources = [];
-  for (const t of titles.slice(0, 4)) {
-    const text = main[t] || rest[t];
-    if (text) sources.push({ title: t, dist: distOf[t] ?? null, text: forSpeech(text) });
-  }
-  return { place: primary, primary, image, sources, nearby: near.slice(1, 6).map(x => x.title) };
+  pages.slice(0, 5).forEach((pg, i) => {
+    const text = (pg.extract || '').trim();
+    if (!text) return;
+    sources.push({
+      title: pg.title,
+      dist: null,
+      text: forSpeech(text.slice(0, i === 0 ? 1800 : 700)),
+    });
+  });
+
+  return {
+    place: primary.title,
+    primary: primary.title,
+    image: primary.thumbnail?.source || '',
+    sources,
+    nearby: pages.slice(1, 6).map(x => x.title),
+  };
 }
+
