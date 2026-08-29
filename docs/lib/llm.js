@@ -149,12 +149,19 @@ function* streamWiki(data, length) {
 }
 
 /* ── Gemini ──────────────────────────────────────────────── */
-const PREFERRED = ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.7-flash',
-                   'gemini-flash-latest', 'gemini-3-flash-preview', 'gemini-2.5-flash'];
+/* 첫 글자가 나오기까지의 시간을 재보고 순서를 정했다.
+   lite 계열이 1.1초, 일반 flash 는 6~10초. 아홉 배 차이다. */
+const PREFERRED = ['gemini-3.5-flash-lite', 'gemini-flash-lite-latest',
+                   'gemini-3.1-flash-lite', 'gemini-3.5-flash',
+                   'gemini-3.6-flash', 'gemini-flash-latest', 'gemini-2.5-flash'];
+const PICKED = 'gemini-model';
 let candidates = null;
 
 async function models(key) {
   if (candidates) return candidates;
+  // 지난번에 쓰던 모델을 기억해 두면 목록 조회(약 0.35초)를 건너뛴다
+  const saved = localStorage.getItem(PICKED);
+  if (saved) { candidates = [saved, ...PREFERRED.filter(m => m !== saved)]; return candidates; }
   let usable = [];
   try {
     const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`);
@@ -165,7 +172,7 @@ async function models(key) {
   } catch (_) {}
   const order = PREFERRED.filter(m => usable.includes(m));
   order.push(...usable.filter(m => m.includes('flash') && !order.includes(m)
-    && !['image', 'tts', 'lite', 'preview'].some(x => m.includes(x))));
+    && !['image', 'tts', 'preview'].some(x => m.includes(x))));
   candidates = order.length ? order : ['gemini-3.6-flash'];
   return candidates;
 }
@@ -215,7 +222,10 @@ export async function* stream(data, { length = 'normal', heard = [], again = fal
 
   for (const model of list.slice(0, 4)) {
     try {
-      for await (const t of geminiOnce(model, key, prompt)) { started = true; yield t; }
+      for await (const t of geminiOnce(model, key, prompt)) {
+        if (!started) { started = true; localStorage.setItem(PICKED, model); }
+        yield t;
+      }
       if (started) return;
     } catch (e) {
       if (started) throw new Error('해설이 중간에 끊겼어요.');

@@ -24,14 +24,15 @@ export const WW = {
   '이집트': ['기자의 대피라미드', '스핑크스', '카르나크 신전', '아부심벨 신전', '룩소르 신전'],
 };
 
-/* 배너 8장 — 국내·해외를 번갈아 */
+/* 배너 8장 — 국내·해외를 번갈아.
+   lead 는 사진 위에 얹는 한 줄 수식어다. */
 export const BANNERS = [
-  { place: '경주 불국사',   query: 'Bulguksa temple Korea',      tag: '국내' },
-  { place: '에펠탑',        query: 'Eiffel Tower Paris',         tag: '해외' },
-  { place: '성산일출봉',    query: 'Seongsan Ilchulbong Jeju',   tag: '국내' },
-  { place: '콜로세움',      query: 'Colosseum Rome',             tag: '해외' },
-  { place: '경복궁',        query: 'Gyeongbokgung palace Seoul', tag: '국내' },
-  { place: '만리장성',      query: 'Great Wall of China',        tag: '해외' },
-  { place: '수원 화성',     query: 'Hwaseong fortress Suwon',    tag: '국내' },
-  { place: '기자의 대피라미드', query: 'Pyramids of Giza Egypt',  tag: '해외' },
+  { place: '경주 불국사',       lead: '천 년을 견딘 돌',     query: 'Bulguksa temple Korea',      tag: '국내' },
+  { place: '에펠탑',            lead: '철로 그린 곡선',      query: 'Eiffel Tower Paris',         tag: '해외' },
+  { place: '성산일출봉',        lead: '바다가 밀어 올린 봉우리', query: 'Seongsan Ilchulbong Jeju', tag: '국내' },
+  { place: '콜로세움',          lead: '함성이 남은 자리',    query: 'Colosseum Rome',             tag: '해외' },
+  { place: '경복궁',            lead: '조선이 시작된 마당',  query: 'Gyeongbokgung palace Seoul', tag: '국내' },
+  { place: '만리장성',          lead: '산등성이를 걷는 담',  query: 'Great Wall of China',        tag: '해외' },
+  { place: '수원 화성',         lead: '아버지를 향한 성',    query: 'Hwaseong fortress Suwon',    tag: '국내' },
+  { place: '기자의 대피라미드', lead: '사천 년의 각도',      query: 'Pyramids of Giza Egypt',     tag: '해외' },
 ];

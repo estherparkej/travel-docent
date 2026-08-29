@@ -108,7 +108,18 @@ export function forSpeech(text) {
              .replace(/[ \t]{2,}/g, ' ').trim();
 }
 
+const gatherCache = new Map();      // 같은 자리를 다시 들을 땐 그대로 쓴다
+
 export async function gather({ lat, lon, manual }) {
+  const ck = manual || `${(+lat).toFixed(3)},${(+lon).toFixed(3)}`;
+  if (gatherCache.has(ck)) return gatherCache.get(ck);
+  const job = gatherOnce({ lat, lon, manual });
+  gatherCache.set(ck, job);
+  job.catch(() => gatherCache.delete(ck));
+  return job;
+}
+
+async function gatherOnce({ lat, lon, manual }) {
   let titles, near = [];
   if (manual) {
     titles = await search(manual);
