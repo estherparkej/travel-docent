@@ -91,6 +91,7 @@ const gap = () => (TONES[prefs.tone] || TONES.warm).gap;
 const QUOTA_WAIT = 60;                 // 대략 이 정도 지나면 풀린다 (초)
 function markQuota() {
   state.quotaAt = Date.now();
+  try { localStorage.setItem('quota-at', String(state.quotaAt)); } catch (_) {}
   renderQuota();
 }
 
@@ -109,7 +110,11 @@ function renderQuota() {
 }
 setInterval(() => { if (state.quotaAt) renderQuota(); }, 1000);
 
-const useGoogle = () => prefs.engine === 'google' && !state.fallback && tts.available();
+const inQuota = () => state.quotaAt && Date.now() - state.quotaAt < QUOTA_WAIT * 1000;
+/* 한도에 걸린 동안에는 물어보지도 않는다.
+   묶음마다 실패를 다시 겪으면 그때마다 재생이 끊긴다. */
+const useGoogle = () => prefs.engine === 'google' && !state.fallback
+  && !inQuota() && tts.available();
 
 /* ── 상태 ────────────────────────────────────────────────── */
 const state = {
@@ -119,7 +124,7 @@ const state = {
   streaming: false, unlocked: false, resolved: '', view: 'player', scriptOpen: false,
   manual: '',   // 검색이나 카드로 고른 장소
   mode: 'full',  // full | summary
-  fallback: false, quotaAt: 0,
+  fallback: false, quotaAt: +(localStorage.getItem('quota-at') || 0),
   shots: [], slide: 0, railT: null, followT: 0,
 };
 
@@ -304,11 +309,26 @@ const SILENT = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AA
 const audioEl = new Audio();
 audioEl.preload = 'auto';
 
+/* 눌린 그 순간에 목소리 엔진을 깨워 둔다.
+   운영체제의 음성 엔진은 한동안 안 쓰면 잠들고, 깨어나는 데만 0.8초가 걸린다.
+   해설을 받아오는 1.8초 동안 미리 깨워 두면 그 시간이 통째로 사라진다.
+   아이폰에서는 이 한 번이 '손가락으로 눌러 허락받은' 재생 권한이 되기도 한다. */
+function warmVoice() {
+  // 말하는 중에 끼워 넣으면 그 문장이 취소되면서 크롬의 말하기 큐가 망가진다.
+  if (speechSynthesis.speaking || speechSynthesis.pending) return;
+  try {
+    const u = new SpeechSynthesisUtterance(' ');
+    u.volume = 0;
+    const v = P.voices.find(x => x.name === els.voiceSel.value);
+    if (v) u.voice = v;                 // 쓸 목소리를 그대로 깨워야 효과가 있다
+    u.lang = 'ko-KR';
+    speechSynthesis.speak(u);
+  } catch (_) {}
+}
+
 function unlockAudio() {
+  warmVoice();                          // 재생을 누를 때마다 깨운다
   if (state.unlocked) return;
-  const u = new SpeechSynthesisUtterance(' ');
-  u.volume = 0;
-  speechSynthesis.speak(u);
   try {
     audioEl.src = SILENT;
     audioEl.play().then(() => { audioEl.pause(); }).catch(() => {});
@@ -495,17 +515,38 @@ function speakCurrent() {
   u.pitch = +els.pitchSel.value;
   const v = P.voices.find(x => x.name === els.voiceSel.value);
   if (v) u.voice = v;
-  u.onstart = () => { if (seq === P.seq) { P.lineAt = performance.now(); highlight(); } };
+  u.onstart = () => { if (seq === P.seq) { P.lineAt = performance.now(); P.retried = false; highlight(); paint(); } };
   u.onend = u.onerror = () => {
     if (seq !== P.seq) return;
     P.speaking = false;
     advance();
   };
   P.speaking = true;
-  P.lineAt = performance.now();
+  P.lineAt = 0;                     // 소리가 나기 시작하면 그때 켠다
   speechSynthesis.speak(u);
   highlight();
   paint();
+
+  /* 사파리와 아이폰은 말하기 요청을 소리 없이 버리는 일이 있다.
+     그러면 onstart 도 onend 도 오지 않아 영영 멈춰 선다.
+     잠깐 기다려 보고 소식이 없으면 한 번 더 시도하고, 그래도 안 되면 사실대로 알린다. */
+  clearTimeout(P.startT);
+  P.startT = setTimeout(() => {
+    if (seq !== P.seq || P.lineAt || P.paused || !P.playing) return;
+    // 소리는 나고 있는데 시작 알림만 오지 않는 경우가 있다(크롬).
+    // 이때 다시 시도하면 멀쩡한 재생을 끊는 꼴이 된다. 시계만 조용히 켠다.
+    if (speechSynthesis.speaking) { P.lineAt = performance.now(); P.retried = false; paint(); return; }
+    if (P.retried) {
+      P.retried = false;
+      P.speaking = false; P.playing = false;
+      notify('기기 목소리가 열리지 않았어요. 재생을 한 번 더 눌러 주세요.');
+      paint();
+      return;
+    }
+    P.retried = true;
+    speechSynthesis.cancel();
+    setTimeout(() => { if (seq === P.seq && P.playing && !P.paused) speakCurrent(); }, 60);
+  }, 1500);
 }
 
 function advance() {
@@ -539,6 +580,17 @@ function playFrom(i) {
   speakCurrent();
 }
 
+/* 말하기 알림(onend)은 크롬·사파리에서 종종 통째로 사라진다.
+   그러면 한 문장만 읽고 그대로 멈춰 선다.
+   알림에만 기대지 않고, 실제로 말이 끝났는지 직접 들여다본다. */
+setInterval(() => {
+  if (!P.playing || P.paused || P.audio) return;   // 구글 목소리는 오디오가 알려준다
+  if (!P.speaking || !P.lineAt) return;
+  if (speechSynthesis.speaking || speechSynthesis.pending) return;
+  P.speaking = false;
+  advance();
+}, 250);
+
 function killAudio() {
   if (P.audio) { P.audio.pause(); P.audio = null; }
   P.waiting = false;
@@ -571,7 +623,10 @@ function elapsed() {
     const c = P.chunks[P.ci];
     if (c) return P.lines[c.from].start + P.audio.currentTime / (P.audio.playbackRate || 1);
   }
-  if (!P.speaking) return l.start;
+  // 아직 소리가 시작되지 않았으면 진행을 붙잡아 둔다.
+  // 예전에는 말하기를 요청한 순간부터 시계를 돌려서,
+  // 기기가 조용히 요청을 버려도 진행바만 혼자 흘러갔다.
+  if (!P.speaking || !P.lineAt) return l.start;
   const held = P.paused ? P.heldFor : performance.now() - P.lineAt;
   return l.start + Math.min(held / 1000, l.dur);
 }
@@ -582,7 +637,11 @@ function paint() {
   if (!els.track.classList.contains('drag')) els.fill.style.width = pct + '%';
   els.miniRing.style.strokeDashoffset = (110 * (1 - pct / 100)).toFixed(1);
   if (!els.track.classList.contains('drag')) els.tCur.textContent = fmt(cur);
-  els.tDur.textContent = (state.streaming && !dur) ? '--:--' : fmt(dur);
+  /* 듣는 동안에는 '얼마나 남았나'가 궁금하고, 멈춰 있을 때는 '얼마나 긴가'가 궁금하다.
+     일시정지마다 값이 뒤바뀌면 어지러우니 한 번 재생이 시작되면 끝날 때까지 남은 시간을 둔다. */
+  const live = P.playing && !P.ended;
+  els.tDur.textContent = !dur ? '--:--'          // 아직 길이를 모른다
+    : live ? '-' + fmt(Math.max(0, dur - cur)) : fmt(dur);
 
   const busy = (state.streaming && !P.lines.length) || P.waiting;   // 대본·목소리를 만드는 중
   const on = P.playing && !P.paused;

@@ -54,7 +54,6 @@
   --ease:var(--gentle);
 
   --halo:rgba(255,255,255,.85);
-  --scrim:rgba(255,255,255,.82);
 }
 
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
@@ -129,8 +128,6 @@ main{position:relative;min-height:0;overflow:hidden}
   position:absolute;left:50%;top:36%;transform:translate(-50%,-50%);
   width:26%;max-width:108px;height:auto;color:#D4D4DB;
 }
-.scrim{position:absolute;inset:0 0 auto;height:18%;pointer-events:none;
-  background:linear-gradient(to bottom,var(--scrim),transparent)}
 
 /* ── 그 위에 얹히는 것들 ─────────────────────────────────
    스와이프가 사진까지 닿도록 기본은 통과, 조작 요소만 받는다. */
@@ -196,10 +193,16 @@ main{position:relative;min-height:0;overflow:hidden}
   transition:opacity var(--dur) var(--gentle),transform .2s}
 .track.drag .knob{opacity:1;transform:scale(1)}
 .track.drag .fill{transition:none}
-.times{display:flex;justify-content:space-between;font-size:var(--fs-2xs);color:var(--dim2);
-  margin-top:6px;font-variant-numeric:tabular-nums;letter-spacing:0;
-  opacity:0;transition:opacity var(--dur)}
-.times.show{opacity:1}
+/* 남은 시간은 진행바와 같은 줄, 오른쪽 끝에 놓는다. 진행바가 그만큼 짧아진다. */
+.seek{display:flex;align-items:center;gap:12px}
+.seek .track{flex:1 1 auto;min-width:0}
+.times{flex:0 0 auto;font-size:var(--fs-2xs);color:var(--ink);
+  font-variant-numeric:tabular-nums;letter-spacing:0;font-weight:600}
+/* 진행바를 끄는 동안에는 옮겨 갈 자리를 대신 보여준다 */
+#tCur{display:none}
+.times.show #tCur{display:inline}
+.times.show #tDur{display:none}
+.on-dark .times{color:#FFF;text-shadow:0 1px 10px rgba(0,0,0,.5)}
 
 .controls{display:flex;align-items:center;justify-content:space-between;
   padding:clamp(10px,2.6vh,22px) 0 clamp(6px,1.6vh,14px)}
