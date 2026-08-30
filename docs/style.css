@@ -808,3 +808,7 @@ input[type=range]:disabled{opacity:.4}
     rgba(255,255,255,.88) 38%, rgba(255,255,255,.97) 56%, #FFF 70%);
 }
 .on-busy .lower::before{opacity:1}
+
+
+/* 보이스 종류가 넷이 되면서 칸이 좁아졌다. 글자만 줄여 균형을 맞춘다. */
+.seg4 button{font-size:13px;padding-left:0;padding-right:0;letter-spacing:-.2px}

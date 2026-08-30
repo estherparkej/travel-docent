@@ -186,9 +186,11 @@
 
       <div class="field">
         <span class="flabel">보이스 종류</span>
-        <div class="seg" id="engineSeg">
+        <div class="seg seg4" id="engineSeg">
           <button data-v="device" class="on">기본</button>
-          <button data-v="google">구글 제공</button>
+          <button data-v="google">구글</button>
+          <button data-v="azure">Azure</button>
+          <button data-v="eleven">Eleven</button>
         </div>
         <div class="callout hidden" id="quotaNote">
           <span class="callout-ico">
@@ -223,7 +225,7 @@
       </div>
 
       <div class="field hidden" id="googleField">
-        <span class="flabel">구글 보이스</span>
+        <span class="flabel" id="netVoiceLabel">구글 보이스</span>
         <div class="voices" id="gvoiceList"></div>
       </div>
 
@@ -314,6 +316,18 @@
         <input type="password" id="geminiKey" class="bigfield" placeholder="AIza… 또는 AQ.…" autocomplete="off">
       </div>
       <div class="field">
+        <label class="flabel" for="azureKey">Azure Speech 키</label>
+        <input type="password" id="azureKey" class="bigfield" placeholder="32자리" autocomplete="off">
+      </div>
+      <div class="field">
+        <label class="flabel" for="azureRegion">Azure 지역</label>
+        <input type="text" id="azureRegion" class="bigfield" placeholder="koreacentral" autocomplete="off">
+      </div>
+      <div class="field">
+        <label class="flabel" for="elevenKey">ElevenLabs 키</label>
+        <input type="password" id="elevenKey" class="bigfield" placeholder="sk_…" autocomplete="off">
+      </div>
+      <div class="field">
         <label class="flabel" for="pexelsKey">Pexels 키</label>
         <input type="password" id="pexelsKey" class="bigfield" placeholder="비워두면 위키 사진만" autocomplete="off">
       </div>
@@ -322,6 +336,14 @@
         <div class="keylinks">
         <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">
           <span>Google AI Studio<em>Gemini 무료 키 받기</em></span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8.5 6h9.5v9.5M18 6 6 18"/></svg>
+        </a>
+        <a href="https://portal.azure.com/#create/Microsoft.CognitiveServicesSpeechServices" target="_blank" rel="noopener">
+          <span>Azure Speech<em>월 50만 자 무료</em></span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8.5 6h9.5v9.5M18 6 6 18"/></svg>
+        </a>
+        <a href="https://elevenlabs.io/app/settings/api-keys" target="_blank" rel="noopener">
+          <span>ElevenLabs<em>월 1만 크레딧 무료</em></span>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8.5 6h9.5v9.5M18 6 6 18"/></svg>
         </a>
         <a href="https://www.pexels.com/api/" target="_blank" rel="noopener">
