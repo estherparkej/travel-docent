@@ -50,6 +50,8 @@ const els = {
   openApi: $('openApi'), apiDot: $('apiDot'),
   apiSheet: $('apiSheet'), apiInner: $('apiInner'), apiHead: $('apiHead'),
   geminiKey: $('geminiKey'), pexelsKey: $('pexelsKey'), saveKeys: $('saveKeys'),
+  azureKey: $('azureKey'), azureRegion: $('azureRegion'), elevenKey: $('elevenKey'),
+  netVoiceLabel: $('netVoiceLabel'),
   accHead: $('voiceAccHead'), accBody: $('voiceAccBody'), voiceNow: $('voiceNow'),
 };
 
@@ -113,8 +115,10 @@ setInterval(() => { if (state.quotaAt) renderQuota(); }, 1000);
 const inQuota = () => state.quotaAt && Date.now() - state.quotaAt < QUOTA_WAIT * 1000;
 /* 한도에 걸린 동안에는 물어보지도 않는다.
    묶음마다 실패를 다시 겪으면 그때마다 재생이 끊긴다. */
-const useGoogle = () => prefs.engine === 'google' && !state.fallback
-  && !inQuota() && tts.available();
+const NET = ['google', 'azure', 'eleven'];
+const isNet = e => NET.includes(e);
+const useGoogle = () => isNet(prefs.engine) && !state.fallback
+  && !inQuota() && tts.available(prefs.engine);
 
 /* ── 상태 ────────────────────────────────────────────────── */
 const state = {
@@ -357,10 +361,20 @@ const audioCache = new Map();     // 요청키 → Promise<{url, dur}>
 let gvoices = [];
 const CHUNK_CHARS = 200;
 
-function ttsKey(text) { return `${prefs.gvoice}|${prefs.tone}|${text}`; }
+/* 엔진마다 목소리 이름 체계가 달라 따로 기억해야 한다.
+   구글은 'sulafat', Azure 는 'ko-KR-SunHiNeural', Eleven 은 긴 아이디다. */
+function voiceOf(engine = prefs.engine) {
+  if (engine === 'google') return prefs.gvoice;
+  return (prefs.netVoice || {})[engine] || '';
+}
+function setVoiceOf(id, engine = prefs.engine) {
+  if (engine === 'google') { prefs.gvoice = id; return; }
+  prefs.netVoice = { ...(prefs.netVoice || {}), [engine]: id };
+}
+function ttsKey(text) { return `${voiceOf()}|${prefs.tone}|${text}`; }
 
 function fetchAudio(text) {
-  return tts.synth(text, prefs.gvoice, prefs.tone);
+  return tts.synth(text, voiceOf(), prefs.tone, prefs.engine);
 }
 
 /* 문장을 묶음으로 나눈다.
@@ -724,8 +738,8 @@ function addLine(text) {
   el.onclick = () => { playFrom(i); };
   els.transcript.appendChild(el);
   P.lines.push({ text, el, dur: 0, start: 0, offset: 0 });
-  relayout(prefs.engine === 'google');
-  if (prefs.engine === 'google') buildChunks();
+  relayout(isNet(prefs.engine));
+  if (isNet(prefs.engine)) buildChunks();
   if (P.idx < 0) P.idx = 0;
   if (useGoogle()) {
     if (P.playing && !P.paused && P.pendingNext != null && P.chunks[P.pendingNext]) {
@@ -1590,7 +1604,7 @@ async function previewGoogle() {
 function previewVoice() {
   unlockAudio();
   if (P.playing && P.lines.length) { playFrom(P.idx); return; }  // 듣는 중이면 끊지 않는다
-  if (prefs.engine === 'google' && tts.available()) return previewGoogle();
+  if (isNet(prefs.engine) && tts.available(prefs.engine)) return previewGoogle();
   speechSynthesis.cancel();
   P.seq++;
   const u = new SpeechSynthesisUtterance(SAMPLE);
@@ -1606,16 +1620,21 @@ els.preview.onclick = previewVoice;
 /* ── 목소리 종류 전환 ────────────────────────────────────── */
 const openKeyBox = () => openApiSheet();
 
+const ENGINE_NAME = { google: '구글', azure: 'Azure', eleven: 'ElevenLabs' };
+
 function renderGVoices() {
+  const name = ENGINE_NAME[prefs.engine] || '구글';
+  if (els.netVoiceLabel) els.netVoiceLabel.textContent = `${name} 보이스`;
   if (!gvoices.length) {
     els.gvoiceList.innerHTML =
-      '<p class="empty">AI 키를 넣으면 여덟 가지 구글 목소리를 고를 수 있어요.</p>';
+      `<p class="empty">${name} 키를 넣으면 목소리를 고를 수 있어요.</p>`;
     return;
   }
   // 왼쪽 동그라미로 고르고, 오른쪽 버튼으로 들어본다
+  const picked = voiceOf();
   els.gvoiceList.innerHTML = gvoices.map(v => `
-    <div class="vrow pick${v.id === prefs.gvoice ? ' on' : ''}" data-v="${v.id}"
-         role="radio" aria-checked="${v.id === prefs.gvoice}" tabindex="0">
+    <div class="vrow pick${v.id === picked ? ' on' : ''}" data-v="${v.id}"
+         role="radio" aria-checked="${v.id === picked}" tabindex="0">
       <span class="vcheck" aria-hidden="true"><i></i></span>
       <span class="vtext"><b>${v.label}</b><em>${v.desc}</em></span>
       <button class="vplay" data-v="${v.id}" aria-label="${v.label} 들어보기">${ICO_PLAY_SM}</button>
@@ -1633,8 +1652,9 @@ function markVoiceButtons() {
     b.innerHTML = loading ? ICO_SPIN_SM : playing ? ICO_PAUSE_SM : ICO_PLAY_SM;
     b.classList.toggle('playing', playing || loading);
   });
+  const now = voiceOf();
   [...els.gvoiceList.querySelectorAll('.vrow')].forEach(r => {
-    const on = r.dataset.v === prefs.gvoice;
+    const on = r.dataset.v === now;
     r.classList.toggle('on', on);
     r.setAttribute('aria-checked', String(on));
   });
@@ -1651,13 +1671,13 @@ async function playVoiceSample(id, alsoPick = true) {
   stopPreview();
   unlockAudio();
 
-  if (alsoPick) { prefs.gvoice = id; savePrefs(); }
+  if (alsoPick) { setVoiceOf(id); savePrefs(); }
   previewOf = id;
   previewLoading = id;            // 만드는 동안 스피너
   markVoiceButtons();
 
   try {
-    const got = await tts.synth(SAMPLE, id, prefs.tone);
+    const got = await tts.synth(SAMPLE, id, prefs.tone, prefs.engine);
     previewLoading = '';
     if (previewOf !== id) { markVoiceButtons(); return; }
     previewEl.src = got.url;
@@ -1672,7 +1692,7 @@ async function playVoiceSample(id, alsoPick = true) {
 }
 
 function applyEngine() {
-  const g = prefs.engine === 'google';
+  const g = isNet(prefs.engine);
   [...els.engineSeg.children].forEach(b => b.classList.toggle('on', b.dataset.v === prefs.engine));
   els.deviceField.classList.toggle('hidden', g);
   els.googleField.classList.toggle('hidden', !g);
@@ -1684,29 +1704,49 @@ els.engineSeg.onclick = e => {
   const b = e.target.closest('button');
   if (!b || b.dataset.v === prefs.engine) return;
   prefs.engine = b.dataset.v;
+  state.fallback = false;          // 엔진을 바꾸면 지난번 실패는 잊는다
   savePrefs();
   applyEngine();
   stopAll(); paint();
-  // 키가 없으면 어디에 넣는지 바로 열어 보여준다
-  if (prefs.engine === 'google' && !gvoices.length) openKeyBox();
+  loadNetVoices();
 };
+
+/* 고른 엔진의 목소리 목록을 받아 온다.
+   구글은 붙박이지만 Azure·Eleven 은 열쇠로 물어봐야 알 수 있다. */
+async function loadNetVoices() {
+  if (!isNet(prefs.engine)) { gvoices = []; renderGVoices(); return; }
+  if (!tts.available(prefs.engine)) {
+    gvoices = []; renderGVoices(); openKeyBox(); return;
+  }
+  els.gvoiceList.innerHTML = '<p class="empty">목소리 목록을 받아오는 중이에요.</p>';
+  try {
+    gvoices = await tts.voices(prefs.engine);
+    if (!voiceOf() && gvoices.length) { setVoiceOf(gvoices[0].id); savePrefs(); }
+  } catch (err) {
+    gvoices = [];
+    els.gvoiceList.innerHTML =
+      `<p class="empty">${err.message === 'BADKEY'
+        ? '키가 맞지 않아요. 다시 확인해 주세요.'
+        : '목소리 목록을 받지 못했어요. 키와 지역을 확인해 주세요.'}</p>`;
+    return;
+  }
+  renderGVoices();
+}
 
 els.gvoiceList.onclick = e => {
   const play = e.target.closest('.vplay');
   if (play) { playVoiceSample(play.dataset.v, false); return; }   // 들어보기만
   const row = e.target.closest('.vrow');
   if (!row) return;
-  prefs.gvoice = row.dataset.v;                                   // 이 보이스로 정한다
+  setVoiceOf(row.dataset.v);                                      // 이 보이스로 정한다
   savePrefs();
   markVoiceButtons();
 };
 
 (async () => {
-  const d = { ok: tts.available(), voices: tts.VOICES };
-  gvoices = d.ok ? d.voices : [];
-  if (!gvoices.length && prefs.engine === 'google') prefs.engine = 'device';
-  renderGVoices();
+  if (isNet(prefs.engine) && !tts.available(prefs.engine)) prefs.engine = 'device';
   applyEngine();
+  await loadNetVoices();
 })();
 
 els.toneList.onclick = e => {
@@ -1745,13 +1785,17 @@ els.voiceSel.onchange = () => {
 /* ── API 키 ──────────────────────────────────────────────
    키는 이 기기의 localStorage 에만 있다. 코드에도 서버에도 없다. */
 function refreshKeyState() {
-  els.apiDot.classList.toggle('on', !!getKey('gemini'));
+  els.apiDot.classList.toggle('on',
+    !!(getKey('gemini') || getKey('azure') || getKey('eleven')));
   setChip(provider());
 }
 
 function openApiSheet() {
   const k = getKeys();
   els.geminiKey.value = k.gemini || '';
+  els.azureKey.value = k.azure || '';
+  els.azureRegion.value = k.azureRegion || '';
+  els.elevenKey.value = k.eleven || '';
   els.pexelsKey.value = k.pexels || '';
   els.apiSheet.classList.remove('hidden');
   els.apiInner.style.transform = '';
@@ -1797,12 +1841,15 @@ els.apiSheet.onclick = e => { if (e.target === els.apiSheet) closeApiSheet(); };
 
 els.saveKeys.onclick = () => {
   setKey('gemini', els.geminiKey.value);
+  setKey('azure', els.azureKey.value);
+  setKey('azureRegion', els.azureRegion.value.trim().toLowerCase());
+  setKey('eleven', els.elevenKey.value);
   setKey('pexels', els.pexelsKey.value);
   refreshKeyState();
-  gvoices = tts.available() ? tts.VOICES : [];
-  if (!gvoices.length && prefs.engine === 'google') { prefs.engine = 'device'; savePrefs(); }
-  renderGVoices();
+  state.fallback = false;
+  if (isNet(prefs.engine) && !tts.available(prefs.engine)) { prefs.engine = 'device'; savePrefs(); }
   applyEngine();
+  loadNetVoices();
   closeApiSheet();
 };
 
