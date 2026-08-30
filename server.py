@@ -24,7 +24,7 @@ import tts
 import wiki
 
 ROOT = Path(__file__).resolve().parent
-WEB = ROOT / "web"
+WEB = ROOT / "docs"   # GitHub Pages 가 /docs 를 지원해서 이름을 맞췄다
 CERT = ROOT / ".certs"
 USER_AGENT = "travel-docent/1.0 (personal learning project)"
 
