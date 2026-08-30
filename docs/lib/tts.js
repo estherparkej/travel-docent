@@ -1,7 +1,7 @@
 /* 구글 Gemini 음성. 브라우저에서 직접 부른다.
    무료 한도가 분당 요청 수로 걸려 있어 한 번에 하나씩, 간격을 두고 보낸다. */
 
-import { getKey } from './keys.js';
+import { getKey, getPlain } from './keys.js';
 
 const MODELS = ['gemini-3.1-flash-tts-preview', 'gemini-2.5-flash-preview-tts'];
 
@@ -52,7 +52,16 @@ const STYLES = {
   clear:  '또박또박 정확한 발음으로',
 };
 
-export const available = () => !!getKey('gemini');
+/* ── 엔진 ────────────────────────────────────────────────
+   기기 목소리 말고, 인터넷으로 받아오는 곳들. */
+export const ENGINES = [
+  { id: 'google', label: '구글',    key: 'gemini', note: 'Gemini · 30가지 목소리' },
+  { id: 'azure',  label: 'Azure',   key: 'azure',  note: '한국어 전용 목소리 · 넉넉한 무료 한도' },
+  { id: 'eleven', label: 'Eleven',  key: 'eleven', note: '가장 사람 같지만 무료 한도가 적음' },
+];
+
+export const available = (engine = 'google') =>
+  !!getKey(ENGINES.find(e => e.id === engine)?.key || 'gemini');
 
 /* Gemini 는 헤더 없는 PCM 을 준다. 브라우저가 읽도록 WAV 로 감싼다. */
 function toWav(pcm, rate = 24000, ch = 1, bits = 16) {
@@ -119,7 +128,7 @@ async function call(model, key, prompt, voice) {
 const cache = new Map();          // 키 → Promise<{url, dur}>
 let model = null;
 
-export function synth(text, voice = 'sulafat', tone = 'warm') {
+function synthGemini(text, voice, tone) {
   text = (text || '').trim();
   if (!text) return Promise.reject(new Error('읽을 문장이 없어요'));
   if (!IDS.has(voice)) voice = 'sulafat';
@@ -155,6 +164,161 @@ export function synth(text, voice = 'sulafat', tone = 'warm') {
       }
     }
     throw new Error(last === 'QUOTA' ? 'QUOTA' : (last || '음성을 만들지 못했어요'));
+  })();
+
+  cache.set(ck, job);
+  job.catch(() => cache.delete(ck));
+  return job;
+}
+
+
+/* ── Azure 음성 ──────────────────────────────────────────
+   한국어를 위해 만들어진 목소리라 억양이 자연스럽다.
+   무료 등급(F0)이 한 달 50만 자로 넉넉해서 이 앱에는 가장 잘 맞는다. */
+const AZ_REGION = () => getPlain('azureRegion', 'koreacentral');
+const azHost = () => `https://${AZ_REGION()}.tts.speech.microsoft.com`;
+
+/* 한국어 목소리는 감정 스타일을 거의 지원하지 않는다.
+   대신 어느 목소리에서나 통하는 빠르기·높낮이로 결을 만든다. */
+const AZ_TONE = {
+  warm:   { rate: '-8%',  pitch: '0%'  },
+  lively: { rate: '+8%',  pitch: '+4%' },
+  calm:   { rate: '-15%', pitch: '-4%' },
+  deep:   { rate: '-10%', pitch: '-8%' },
+  clear:  { rate: '0%',   pitch: '0%'  },
+};
+
+const esc = t => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                  .replace(/"/g, '&quot;');
+
+async function azVoices(key) {
+  const res = await fetch(`${azHost()}/cognitiveservices/voices/list`,
+    { headers: { 'Ocp-Apim-Subscription-Key': key } });
+  if (!res.ok) { const e = new Error(await res.text()); e.status = res.status; throw e; }
+  const all = await res.json();
+  return all
+    .filter(v => v.Locale === 'ko-KR')
+    .map(v => ({
+      id: v.ShortName,
+      // LocalName 은 '선히'처럼 우리말 이름이라 그대로 쓰면 알아보기 쉽다
+      label: `${v.LocalName || v.DisplayName} 목소리`,
+      desc: (v.Gender === 'Male' ? '남성' : '여성')
+            + (v.VoiceType === 'Neural' ? ' · 자연스러운 신경망' : ''),
+    }));
+}
+
+async function azSynth(text, voice, tone, key) {
+  const t = AZ_TONE[tone] || AZ_TONE.warm;
+  const ssml =
+    `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="ko-KR">` +
+    `<voice name="${voice}"><prosody rate="${t.rate}" pitch="${t.pitch}">` +
+    `${esc(text)}</prosody></voice></speak>`;
+  const res = await fetch(`${azHost()}/cognitiveservices/v1`, {
+    method: 'POST',
+    headers: {
+      'Ocp-Apim-Subscription-Key': key,
+      'Content-Type': 'application/ssml+xml',
+      'X-Microsoft-OutputFormat': 'audio-24khz-48kbitrate-mono-mp3',
+    },
+    body: ssml,
+  });
+  if (!res.ok) { const e = new Error(await res.text()); e.status = res.status; throw e; }
+  return new Blob([await res.arrayBuffer()], { type: 'audio/mpeg' });
+}
+
+/* ── ElevenLabs ──────────────────────────────────────────
+   목소리 자체는 가장 사람 같다. 다만 한국어 전용 목소리가 아니라
+   영어권 목소리가 한국어를 읽는 구조라 억양이 묻어난다.
+   무료 한도도 한 달 1만 크레딧뿐이라 오래 못 쓴다. */
+const EL_MODEL = 'eleven_flash_v2_5';        // 빠르고 크레딧을 절반만 쓴다
+const EL_TONE = {
+  warm:   { stability: 0.45, similarity_boost: 0.80, speed: 0.94 },
+  lively: { stability: 0.30, similarity_boost: 0.75, speed: 1.06 },
+  calm:   { stability: 0.65, similarity_boost: 0.80, speed: 0.88 },
+  deep:   { stability: 0.60, similarity_boost: 0.85, speed: 0.92 },
+  clear:  { stability: 0.55, similarity_boost: 0.75, speed: 1.00 },
+};
+
+async function elVoices(key) {
+  const res = await fetch('https://api.elevenlabs.io/v1/voices',
+    { headers: { 'xi-api-key': key } });
+  if (!res.ok) { const e = new Error(await res.text()); e.status = res.status; throw e; }
+  const d = await res.json();
+  return (d.voices || []).map(v => ({
+    id: v.voice_id,
+    label: (v.name || '').split(' - ')[0],
+    desc: [v.labels?.gender === 'male' ? '남성' : v.labels?.gender === 'female' ? '여성' : '',
+           v.labels?.description || ''].filter(Boolean).join(' · ') || '영어권 목소리',
+  }));
+}
+
+async function elSynth(text, voice, tone, key) {
+  const t = EL_TONE[tone] || EL_TONE.warm;
+  const res = await fetch(
+    `https://api.elevenlabs.io/v1/text-to-speech/${voice}?output_format=mp3_44100_128`, {
+      method: 'POST',
+      headers: { 'xi-api-key': key, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, model_id: EL_MODEL, voice_settings: t }),
+    });
+  if (!res.ok) { const e = new Error(await res.text()); e.status = res.status; throw e; }
+  return new Blob([await res.arrayBuffer()], { type: 'audio/mpeg' });
+}
+
+/* ── 공통 ────────────────────────────────────────────────── */
+/* 서비스마다 실패를 알리는 방식이 다르다. Azure 는 본문 없이 401 만 주고,
+   ElevenLabs 는 JSON 을 통째로 준다. 화면에 그대로 내보내면 읽을 수 없으므로
+   여기서 세 가지로만 추린다: 한도 / 키 문제 / 그 밖. */
+function tidy(e) {
+  if (e.status === 429) return new Error('QUOTA');
+  if (e.status === 401 || e.status === 403) return new Error('BADKEY');
+  const m = String(e.message || '');
+  if (/authentication|unauthor|invalid[_ ]api[_ ]key/i.test(m)) return new Error('BADKEY');
+  if (/quota|rate[_ ]limit|too many/i.test(m)) return new Error('QUOTA');
+  return new Error(m.slice(0, 120) || '목소리를 불러오지 못했어요');
+}
+const durOf = url => new Promise(res => {
+  const a = new Audio(url);
+  a.onloadedmetadata = () => res(a.duration);
+  a.onerror = () => res(0);
+});
+
+const listCache = new Map();
+
+/* 고를 수 있는 목소리 목록. 구글은 붙박이고, 나머지는 열쇠로 물어본다. */
+export function voices(engine = 'google') {
+  if (engine === 'google') return Promise.resolve(VOICES);
+  const key = getKey(engine === 'azure' ? 'azure' : 'eleven');
+  if (!key) return Promise.reject(new Error('NOKEY'));
+  const ck = `${engine}|${key.slice(-6)}|${engine === 'azure' ? AZ_REGION() : ''}`;
+  if (listCache.has(ck)) return listCache.get(ck);
+  const job = (engine === 'azure' ? azVoices(key) : elVoices(key))
+    .catch(e => { throw tidy(e); });
+  listCache.set(ck, job);
+  job.catch(() => listCache.delete(ck));
+  return job;
+}
+
+export function synth(text, voice, tone = 'warm', engine = 'google') {
+  text = (text || '').trim();
+  if (!text) return Promise.reject(new Error('읽을 문장이 없어요'));
+  if (engine === 'google') return synthGemini(text, voice, tone);
+
+  const key = getKey(engine === 'azure' ? 'azure' : 'eleven');
+  if (!key) return Promise.reject(new Error('NOKEY'));
+
+  const ck = `${engine}|${voice}|${tone}|${text}`;
+  if (cache.has(ck)) return cache.get(ck);
+
+  const job = (async () => {
+    try {
+      const blob = engine === 'azure'
+        ? await azSynth(text, voice, tone, key)
+        : await elSynth(text, voice, tone, key);
+      const url = URL.createObjectURL(blob);
+      return { url, dur: await durOf(url) };
+    } catch (e) {
+      throw tidy(e);
+    }
   })();
 
   cache.set(ck, job);

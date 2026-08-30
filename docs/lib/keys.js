@@ -20,6 +20,11 @@ export function setKey(name, value) {
   localStorage.setItem(KEYS, JSON.stringify(all));
 }
 
+/* 지역 이름처럼 짧은 값은 길이로 거를 수 없다. 그대로 돌려준다. */
+export function getPlain(name, fallback = '') {
+  return (getKeys()[name] || '').trim() || fallback;
+}
+
 export function provider() {
   return getKey('gemini') ? 'gemini' : 'wiki';
 }
