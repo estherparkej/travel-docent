@@ -265,33 +265,35 @@ main{position:relative;min-height:0;overflow:hidden}
 .log .go:active{}
 
 /* ── 미니 플레이어 ─────────────────────────────────────── */
+/* ── 축소 플레이어 ────────────────────────────────────────
+   원형 하나로 줄였다. 안에는 그 장소의 사진, 그 위에 옅은 막과 재생 표시.
+   오른쪽 아래, 탭바 위에 뜬다. */
 .mini{
-  position:fixed;left:50%;transform:translateX(-50%);
-  width:calc(100% - var(--gap)*2);max-width:var(--maxw);z-index:1090;
-  bottom:calc(var(--navh) + max(var(--navlift), var(--safe-b)) + 8px);
-  display:grid;grid-template-columns:40px 1fr 40px;align-items:center;gap:11px;
-  padding:8px 10px;border-radius:16px;overflow:hidden;
-  background:rgba(255,255,255,.82);
-  backdrop-filter:blur(20px) saturate(1.8);
-  -webkit-backdrop-filter:blur(20px) saturate(1.8);
-  border:1px solid rgba(0,0,0,.06);
-  box-shadow:0 8px 24px -8px rgba(0,0,0,.18);
-  animation:rise .28s var(--ease);
-  max-width:520px;margin:0 auto;
-}
-@keyframes rise{from{opacity:0;transform:translate(-50%,10px)}to{opacity:1;transform:translate(-50%,0)}}
-.mini-art{width:40px;height:40px;border-radius:8px;overflow:hidden;
-  background:rgba(0,0,0,.3);display:grid;place-items:center}
-.mini-art img{width:100%;height:100%;object-fit:cover}
-.mini-meta{min-width:0}
-.mini-title{font-size:var(--fs-sm);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.mini-sub{font-size:var(--fs-xs);color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-/* 축소 플레이어 버튼 — 목록 버튼과 같은 규격, 파란 아이콘 */
-.mini-btn{width:36px;height:36px;padding:0;border-radius:50%;flex:none;
+  position:fixed;right:var(--gap);z-index:1090;
+  bottom:calc(var(--navh) + max(var(--navlift), var(--safe-b)) + 14px);
+  width:64px;height:64px;border-radius:50%;overflow:hidden;
   display:grid;place-items:center;
-  background:var(--tint2);color:var(--acc);
-  transition:background var(--dur) var(--gentle),transform var(--dur) var(--gentle)}
-.mini-btn svg{width:20px;height:20px}
+  background:#FFF;
+  box-shadow:0 6px 20px -4px rgba(0,0,0,.24);
+  animation:rise .28s var(--ease);
+  transition:bottom .3s var(--gentle);
+}
+/* 지도 화면에서 장소 카드가 떠 있으면 그 위로 올라간다 */
+.mini.above-card{bottom:calc(var(--navclear) + 100px)}
+.mini > *{grid-area:1/1}
+.mini img{width:64px;height:64px;object-fit:cover;display:block}
+.mini img[hidden]{display:none}
+/* 파란 표시가 읽히려면 밑바탕이 밝아야 한다. 어두운 막 대신 흰 막을 씌운다. */
+.mini-veil{width:64px;height:64px;border-radius:50%;background:rgba(255,255,255,.72)}
+.mini-ring{width:64px;height:64px;transform:rotate(-90deg);pointer-events:none}
+.mini-ring .ring-bg{fill:none;stroke:rgba(0,123,255,.22);stroke-width:3}
+.mini-ring .ring-fg{fill:none;stroke:var(--acc);stroke-width:3;stroke-linecap:round;
+  stroke-dasharray:186;transition:stroke-dashoffset .25s linear}
+.mini-btn{width:64px;height:64px;padding:0;border:0;background:none;
+  display:grid;place-items:center;color:var(--acc);cursor:pointer;
+  transition:transform var(--dur) var(--gentle)}
+.mini-btn svg{width:26px;height:26px}
+.mini:active{transform:scale(.94)}
 .mini-btn:active{background:var(--acc-soft);transform:scale(.96)}
 .mini-btn .spin,.ico .spin,.play .spin{animation:spin .9s linear infinite}
 
@@ -778,19 +780,6 @@ input[type=range]:disabled{opacity:.4}
   color:var(--dim);word-break:keep-all}
 .empty-state .primary-btn{width:auto;min-width:180px;padding:0 28px;margin-top:24px}
 
-/* ══════════ 축소 플레이어 — 버튼 둘레 진행 링 ══════════ */
-.mini-ring-wrap{position:relative;width:40px;height:40px;flex:none;
-  display:grid;place-items:center}
-.mini-ring{position:absolute;inset:0;width:40px;height:40px;
-  transform:rotate(-90deg);pointer-events:none}
-.mini-ring circle{fill:none;stroke-width:2.5;stroke-linecap:round}
-.mini-ring .ring-bg{stroke:var(--line)}
-.mini-ring .ring-fg{
-  stroke:var(--acc);
-  stroke-dasharray:110;            /* 2πr ≈ 110 */
-  stroke-dashoffset:110;           /* 0% 에서 시작 */
-  transition:stroke-dashoffset .2s linear;
-}
 
 /* ══════════ 요약 / 전체 토글 ══════════ */
 .modes{display:flex;align-items:center;gap:6px;margin-top:14px;pointer-events:auto}
@@ -888,13 +877,19 @@ input[type=range]:disabled{opacity:.4}
 
 /* 최근 검색 — 옆으로 넘겨 보는 카드 */
 .recents{display:flex;gap:12px;overflow-x:auto;padding-bottom:4px}
-.recent{flex:0 0 80px;border:0;background:none;padding:0;cursor:pointer;text-align:center;
+.recent{position:relative;flex:0 0 80px;border:0;background:none;padding:0;cursor:pointer;text-align:center;
   transition:transform var(--dur) var(--gentle)}
 .recent:active{transform:scale(.94)}
 .recent .rthumb{width:80px;height:80px;border-radius:50%;overflow:hidden;
   background:var(--tint);display:grid;place-items:center;color:var(--dim2)}
 .recent .rthumb img{width:100%;height:100%;object-fit:cover;display:block}
 .recent .rthumb svg{width:24px;height:24px}
+/* 원 둘레의 진행 고리 — 사진 위에 겹쳐 그린다 */
+.recent .rprog{position:absolute;left:0;top:0;width:80px;height:80px;
+  transform:rotate(-90deg);pointer-events:none}
+.recent .rprog circle{fill:none;stroke-width:4;stroke:var(--tint2)}
+.recent .rprog .fg{stroke:var(--acc);stroke-linecap:round;opacity:1;
+  stroke-dasharray:232;transition:stroke-dashoffset .3s ease}
 /* 이름이 사진보다 길면 잘라 낸다. 사진 폭을 넘어가면 줄이 어긋나 보인다. */
 .recent b{display:block;width:80px;margin-top:8px;font-size:13px;font-weight:600;
   color:var(--ink);letter-spacing:-.01em;
@@ -998,11 +993,6 @@ input[type=range]:disabled{opacity:.4}
 #view-nearby{overflow:hidden}
 .mapwrap{position:relative;width:100%;height:100%}
 #map{width:100%;height:100%;background:var(--tint)}
-.leaflet-container{font:inherit}
-/* 지도 저작권 표시는 작게, 탭바에 가리지 않게 */
-.leaflet-control-attribution{font-size:9px;background:rgba(255,255,255,.7);
-  bottom:calc(var(--navclear) - 18px) !important}
-.leaflet-control-zoom{display:none}
 
 .mapbtn{position:absolute;right:14px;top:calc(var(--safe-t) + 12px);z-index:1050;
   width:42px;height:42px;border:0;border-radius:50%;display:grid;place-items:center;
@@ -1010,14 +1000,15 @@ input[type=range]:disabled{opacity:.4}
   transition:transform var(--dur) var(--gentle)}
 .mapbtn svg{width:21px;height:21px}
 .mapbtn:active{transform:scale(.92)}
-.maphint{position:absolute;left:0;right:0;top:calc(var(--safe-t) + 22px);z-index:400;
-  text-align:center;font-size:13px;color:var(--dim);pointer-events:none;
-  transition:opacity .3s ease}
-.maphint.gone{opacity:0}
+/* 지도 저작권 표시 — 작게, 탭바에 가리지 않게 */
+.maplibregl-ctrl-attrib{font-size:9px;background:rgba(255,255,255,.72) !important}
+.maplibregl-ctrl-bottom-right{bottom:calc(var(--navclear) - 22px)}
+.maplibregl-ctrl-bottom-left{display:none}
 
 /* 핀 — 파란 물방울 안에 사진이 든다 */
-.pin{width:44px;height:56px;position:relative;cursor:pointer;
-  transition:transform .26s var(--gentle)}
+.pin{width:44px;height:56px;position:relative;cursor:pointer}
+/* 지도가 마커 자리를 transform 으로 잡으므로, 확대는 안쪽에서 한다 */
+.pin::after,.pin::before,.pin i{transition:transform .26s var(--gentle)}
 .pin::after{content:"";position:absolute;left:50%;top:0;transform:translateX(-50%);
   width:44px;height:44px;border-radius:50%;background:var(--acc);
   box-shadow:0 3px 10px rgba(0,0,0,.22)}
@@ -1028,7 +1019,10 @@ input[type=range]:disabled{opacity:.4}
   display:grid;place-items:center;color:#FFF}
 .pin i img{width:100%;height:100%;object-fit:cover;display:block}
 .pin i svg{width:17px;height:17px}
-.pin.picked{transform:scale(1.32);z-index:900}
+.pin.picked::after{transform:translateX(-50%) scale(1.3)}
+.pin.picked::before{transform:translateX(-50%) rotate(45deg) scale(1.3)}
+.pin.picked i{transform:translateX(-50%) scale(1.3)}
+.pin.picked{z-index:900}
 
 /* 고른 곳 카드 — 아래에서 올라온다 */
 .placecard{position:absolute;left:var(--gap);right:var(--gap);z-index:1050;
@@ -1062,10 +1056,34 @@ input[type=range]:disabled{opacity:.4}
 
 /* 검색 문구가 스스로 타이핑된다. 커서는 글자 끝을 따라간다. */
 #typeLine{display:flex;align-items:center;min-width:0;height:26px;
-  font-size:18px;font-weight:700;letter-spacing:-.01em}
+  font-size:16px;font-weight:700;letter-spacing:-.01em}
 #typeText{font-style:normal;white-space:pre;overflow:hidden;text-overflow:ellipsis}
-.caret{display:inline-block;width:2px;height:19px;margin-left:3px;flex:0 0 auto;border-radius:1px;
-  background:#7C7C82;animation:blink 1.3s steps(1,end) infinite}
-@keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}
-/* 움직임을 줄이고 싶은 사람에게는 문구만 보여준다 */
-@media (prefers-reduced-motion:reduce){.caret{display:none}}
+/* 한 글자씩 찍는 대신 문구가 통째로 부드럽게 갈린다.
+   기계가 치는 느낌이 사라지고, 글자 수에 따라 속도가 들쭉날쭉하지도 않다. */
+#typeText{display:block;transition:opacity .5s ease,transform .5s var(--gentle)}
+#typeText.out{opacity:0;transform:translateY(-7px)}
+#typeText.in{opacity:0;transform:translateY(7px)}
+.caret{display:none}
+@media (prefers-reduced-motion:reduce){
+  #typeText{transition:none}
+}
+
+
+/* 지도를 옮기면 나타나는 다시 찾기 단추 */
+/* 가운데 정렬을 transform 으로 하면, 눌렀을 때 주는 scale 이
+   그 정렬을 덮어써서 단추가 오른쪽으로 튀어 나간다.
+   자리 잡기는 margin 에 맡기고 transform 은 눌림에만 쓴다. */
+.research{position:absolute;left:0;right:0;margin:0 auto;width:fit-content;
+  bottom:calc(var(--navclear) + 16px);z-index:1050;
+  display:flex;align-items:center;gap:7px;
+  padding:11px 18px;border:0;border-radius:999px;cursor:pointer;
+  background:var(--ink);color:#FFF;font-size:14px;font-weight:600;letter-spacing:-.01em;
+  box-shadow:0 4px 18px rgba(0,0,0,.28);
+  animation:pop .24s var(--gentle);
+  transition:transform .18s var(--gentle),opacity .18s ease}
+.research svg{width:16px;height:16px}
+.research:active{transform:scale(.97)}
+/* 누르고 나면 살짝 줄면서 사라진다. 그 자리에 핀이 새로 꽂힌다. */
+.research.going{transform:scale(.97);opacity:0;pointer-events:none}
+.research.hidden{display:none}
+@keyframes pop{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:scale(1)}}

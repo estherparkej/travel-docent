@@ -54,8 +54,8 @@ const els = {
   scTrack: $('scTrack'), scFill: $('scFill'), scCur: $('scCur'), scDur: $('scDur'),
   downChips: $('downChips'), upChips: $('upChips'),
   logList: $('logList'), logEmpty: $('logEmpty'),
-  mini: $('mini'), miniImg: $('miniImg'), miniEq: $('miniEq'), miniTitle: $('miniTitle'),
-  miniSub: $('miniSub'), miniPlay: $('miniPlay'), miniRing: $('miniRing'),
+  mini: $('mini'), miniImg: $('miniImg'), miniEq: $('miniEq'),
+  miniPlay: $('miniPlay'), miniRing: $('miniRing'),
   settings: $('settings'), lengthSeg: $('lengthSeg'), toneList: $('toneList'),
   voiceSel: $('voiceSel'), preview: $('previewVoice'), voiceHint: $('voiceHint'),
   engineSeg: $('engineSeg'), quotaNote: $('quotaNote'), quotaTxt: $('quotaTxt'),
@@ -144,6 +144,7 @@ const state = {
   manual: '',   // 검색이나 카드로 고른 장소
   mode: 'full',  // full | summary
   fallback: false, quotaAt: +(localStorage.getItem('quota-at') || 0),
+  prog: (() => { try { return JSON.parse(localStorage.getItem('prog') || '{}'); } catch (_) { return {}; } })(),
   shots: [], slide: 0, railT: null, followT: 0,
 };
 
@@ -663,7 +664,7 @@ function paint() {
   const dur = total(), cur = Math.min(elapsed(), dur);
   const pct = dur ? (cur / dur) * 100 : 0;
   if (!els.track.classList.contains('drag')) els.fill.style.width = pct + '%';
-  els.miniRing.style.strokeDashoffset = (110 * (1 - pct / 100)).toFixed(1);
+  els.miniRing.style.strokeDashoffset = (186 * (1 - pct / 100)).toFixed(1);  // 2πr(29.5) ≈ 186
   if (!els.track.classList.contains('drag')) els.tCur.textContent = fmt(cur);
   /* 듣는 동안에는 '얼마나 남았나'가 궁금하고, 멈춰 있을 때는 '얼마나 긴가'가 궁금하다.
      일시정지마다 값이 뒤바뀌면 어지러우니 한 번 재생이 시작되면 끝날 때까지 남은 시간을 둔다. */
@@ -686,6 +687,8 @@ function paint() {
     els.scDur.textContent = !dur ? '--:--'
       : (P.playing && !P.ended) ? '-' + fmt(Math.max(0, dur - cur)) : fmt(dur);
   }
+
+  if (P.playing && dur) saveProgress(state.resolved || state.manual, cur / dur);
 
   showIcon(els.icoWait, busy);
   showIcon(els.icoReplay, !busy && replay);
@@ -713,7 +716,6 @@ function highlight() {
   const cur = P.lines[P.idx];
   if (!cur) return;
   els.peekLine.textContent = cur.text;
-  els.miniSub.textContent = cur.text;
   if (state.scriptOpen && Date.now() > state.followT)
     cur.el.scrollIntoView({ block: 'center', behavior: 'smooth' });
 }
@@ -855,7 +857,6 @@ function onResolvedPlace(d) {
   state.resolved = d.place || '';
   if (state.resolved) {
     els.name.textContent = state.resolved;
-    els.miniTitle.textContent = state.resolved;
     els.scriptPlace.textContent = state.resolved;
   }
   if (d.provider) setChip(d.provider);
@@ -943,6 +944,16 @@ function standingHere(data) {
   return metersBetween(state.pos, c) < 2000;   // 2km 안이면 서 있는 것으로 본다
 }
 
+/* 어디까지 들었는지 기억해 둔다. 홈의 '이어 듣기' 고리에 쓴다. */
+let progAt = 0;
+function saveProgress(place, pct) {
+  if (!place || !(pct >= 0)) return;
+  if (Date.now() - progAt < 1500) return;      // 너무 자주 적지 않는다
+  progAt = Date.now();
+  state.prog = { ...(state.prog || {}), [place]: Math.min(1, pct) };
+  try { localStorage.setItem('prog', JSON.stringify(state.prog)); } catch (_) {}
+}
+
 /* ── 지나온 길 ───────────────────────────────────────────── */
 function remember(place) {
   if (!place) return;
@@ -998,7 +1009,6 @@ async function refreshPlace() {
       els.name.textContent = state.place || '이름 없는 자리';
       els.addr.textContent = state.address;
       els.status.textContent = '지금 계신 곳';
-      els.miniTitle.textContent = state.place || '여행 도슨트';
     }
   } catch (_) {
     els.status.textContent = '지명을 불러오지 못했어요';
@@ -1011,6 +1021,7 @@ function onPosition(p) {
   const next = { lat: p.coords.latitude, lon: p.coords.longitude };
   const moved = metersBetween(state.geocodedAt, next);
   state.pos = next;
+  warmNearby(next);          // 지도에 꽂을 것들을 미리 받아 둔다
   if (moved > 25) refreshPlace();
   if (prefs.auto && !state.streaming &&
       metersBetween(state.narratedAt, next) > 70) narrate();
@@ -1239,8 +1250,18 @@ function renderPlayed() {
   const list = state.heard.slice().reverse().slice(0, 6);
   if (!list.length) { els.playedShelf.classList.add('hidden'); return; }
   els.playedShelf.classList.remove('hidden');
-  els.playedList.innerHTML = list.map(q =>
-    `<div class="recent" data-q="${q}"><span class="rthumb">${PIN_SM}</span><b>${q}</b></div>`).join('');
+  /* 원 둘레에 어디까지 들었는지 그린다. 2πr(37) ≈ 232 */
+  els.playedList.innerHTML = list.map(q => {
+    const pct = (state.prog || {})[q] || 0;
+    return `<div class="recent" data-q="${q}">
+      <span class="rthumb">${PIN_SM}</span>
+      <svg class="rprog" viewBox="0 0 80 80" aria-hidden="true">
+        <circle cx="40" cy="40" r="37"/>
+        <circle cx="40" cy="40" r="37" class="fg"
+                style="stroke-dashoffset:${(232 * (1 - pct)).toFixed(1)}"/>
+      </svg>
+      <b>${q}</b></div>`;
+  }).join('');
   [...els.playedList.children].forEach(el => {
     const q = el.dataset.q;
     el.onclick = () => playPlace(q);
@@ -1267,15 +1288,32 @@ els.kidSeg.onclick = e => {
   if (b && b.dataset.v !== prefs.kidGrade) renderKids(b.dataset.v);
 };
 
+/* 위치를 알게 된 순간 지도에 쓸 것들을 미리 받아 둔다.
+   탭을 누르고 나서 받기 시작하면 1.7초가 걸린다. */
+let warmedAt = null;
+async function warmNearby(at) {
+  if (!at || (warmedAt && metersBetween(warmedAt, at) < 500)) return;
+  warmedAt = at;
+  try {
+    const raw = await wiki.nearby(at.lat, at.lon, 8000, 60);
+    const names = raw.map(x => x.title)
+      .filter(n => !geo2.adminName(n) && !geo2.boring(n) && !score.dropped(n, [], { unknown: true }))
+      .slice(0, 12);
+    if (names.length) wiki.thumbs(names, 160).catch(() => {});
+  } catch (_) {}
+}
+
 /* ── 내 주변 ──────────────────────────────────────────────
    지도 위에 이야깃거리가 있는 곳만 꽂는다.
    지도 라이브러리는 이 화면을 처음 열 때만 받아온다 — 쓰지 않는 사람에게
    45KB 를 미리 물릴 이유가 없다. */
-const MAP_JS = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.js';
+const MAP_JS = 'https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js';
+/* bright — 색이 들어간 지도. 물은 파랗고 공원은 초록이다. */
+const MAP_STYLE = 'https://tiles.openfreemap.org/styles/bright';
 let mapObj = null, mapReady = null, pins = [], pickedPin = null, mapAt = null;
 
 function loadMapLib() {
-  if (window.L) return Promise.resolve();
+  if (window.maplibregl) return Promise.resolve();
   if (mapReady) return mapReady;
   mapReady = new Promise((ok, no) => {
     const el = document.createElement('script');
@@ -1287,98 +1325,150 @@ function loadMapLib() {
 
 const SEOUL = { lat: 37.5665, lon: 126.9780 };
 
+/* 처음 찾은 자리에서 충분히 멀어졌는가 */
+function mapMoved() {
+  if (!mapObj || !mapAt) return false;
+  const c = mapObj.getCenter();
+  return metersBetween(mapAt, { lat: c.lat, lon: c.lng }) > 700;
+}
+
+/* 지도에서 걷어낼 것들.
+   래스터 타일은 그림 한 장이라 도로만 지울 수가 없다.
+   벡터 타일은 층이 나뉘어 있어 필요 없는 층만 빼고 그릴 수 있다.
+   도로·행정경계·항로를 빼면 물, 공원, 건물, 지명은 색 그대로 남는다. */
+const DROP_LAYERS = /^(boundary|aeroway|aerodrome_label)$/;
+const DROP_IDS = /^(waterway_tunnel|poi_transit|building-3d)$|shield|highway-name|road_shield|_label_shield/;
+/* waterway_tunnel: 복개천 점선 — 지상에 없는 물길이다
+   poi_transit: 버스·전철 정류장. 지도를 통째로 덮는데
+                여행 해설을 고르는 데는 아무 쓸모가 없다.
+   building-3d: 솟아오른 건물. 평평한 지도가 읽기 쉽다. */
+
+/* 지명은 한국어로만.
+   원래 스타일은 'Seoul' 과 '서울특별시' 를 줄바꿈으로 붙여 두 줄로 찍는다. */
+const KO_ONLY = ['coalesce', ['get', 'name:ko'], ['get', 'name:nonlatin'], ['get', 'name']];
+
+function trimStyle(style) {
+  const layers = style.layers
+    .filter(l => !DROP_LAYERS.test(l['source-layer'] || '') && !DROP_IDS.test(l.id))
+    .map(l => (l.layout && l.layout['text-field'])
+      ? { ...l, layout: { ...l.layout, 'text-field': KO_ONLY } }
+      : l);
+  return { ...style, layers };
+}
+
 async function renderNearby() {
   try { await loadMapLib(); } catch (_) {
-    $('mapHint').textContent = '지도를 불러오지 못했어요. 인터넷 연결을 확인해 주세요.';
+    notify('지도를 불러오지 못했어요. 인터넷 연결을 확인해 주세요.');
     return;
   }
   const at = state.pos || SEOUL;
   if (!mapObj) {
-    mapObj = L.map('map', { zoomControl: false, attributionControl: true })
-      .setView([at.lat, at.lon], 14);
-    /* CARTO 의 밝은 지도가 앱 색과 잘 맞았는데, 이제 키를 요구한다.
-       ('API KEY REQUIRED' 가 찍힌 타일이 내려온다.)
-       OpenStreetMap 기본 타일은 키 없이 쓸 수 있다. */
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19, attribution: '&copy; OpenStreetMap',
-    }).addTo(mapObj);
+    const raw = await fetch(MAP_STYLE).then(r => r.json());
+    mapObj = new maplibregl.Map({
+      container: 'map',
+      style: trimStyle(raw),
+      center: [at.lon, at.lat],
+      zoom: 13.5,
+      attributionControl: { compact: true },
+      pitch: 0, bearing: 0,
+      pitchWithRotate: false, dragRotate: false,   // 기울거나 돌아가지 않게
+    });
+    mapObj.touchZoomRotate.disableRotation();
     mapObj.on('click', () => pickPin(null));
+    mapObj.on('moveend', () => {
+      // 장소 카드가 떠 있을 때는 자리가 겹치므로 내놓지 않는다
+      const show = mapMoved() && $('placeCard').classList.contains('hidden');
+      $('research').classList.toggle('hidden', !show);
+    });
+    await new Promise(ok => mapObj.on('load', ok));
   }
-  // 숨겨진 채로 만들어지면 크기를 0 으로 잰다. 보이고 난 뒤 몇 번 더 재게 한다.
-  [0, 80, 300].forEach(ms => setTimeout(() => mapObj.invalidateSize(), ms));
+  // 숨겨진 채로 만들어지면 크기를 0 으로 잰다
+  [0, 80, 300].forEach(ms => setTimeout(() => mapObj.resize(), ms));
 
-  // 같은 자리를 다시 열면 그대로 둔다
   if (mapAt && metersBetween(mapAt, at) < 300 && pins.length) return;
   mapAt = at;
-  mapObj.setView([at.lat, at.lon], 14);
+  mapObj.setCenter([at.lon, at.lat]);
   await dropPins(at);
 }
 
-async function dropPins(at) {
-  const hint = $('mapHint');
-  hint.classList.remove('gone');
-  hint.textContent = '주변을 찾는 중이에요';
-  pins.forEach(p => mapObj.removeLayer(p.marker));
+async function dropPins(at, { keepView = false } = {}) {
+  pins.forEach(p => p.marker.remove());
   pins = [];
 
   const raw = await wiki.nearby(at.lat, at.lon, 8000, 60);
-  const coords = Object.fromEntries(raw.map(x => [x.title, { lat: x.lat, lon: x.lon, dist: x.dist }]));
-  let list = raw.map(x => ({ name: x.title, dist: x.dist }));
-  try {
-    const rain = state.pos ? await score.isRaining(at.lat, at.lon) : false;
-    const ranked = await score.rank(list, { pos: state.pos, weather: rain });
-    if (ranked.length) list = ranked;
-  } catch (_) {}
-  list = list.filter(x => coords[x.name]).slice(0, 12);
+  const coords = Object.fromEntries(raw.map(x => [x.title, x]));
 
-  if (!list.length) {
-    hint.textContent = '이 근처에는 들려드릴 곳이 아직 없어요';
-    return;
-  }
-  hint.classList.add('gone');
-  const bounds = [];
+  /* 점수를 다 매기고 나서 꽂으면 5초가 걸린다. 분류를 물어보는 데만 4.8초가 든다.
+     이름만 보고 걸러 먼저 꽂고, 제대로 된 점수는 뒤에서 매겨 갈아 끼운다. */
+  let names = raw.map(x => x.title)
+    .filter(n => !geo2.adminName(n) && !geo2.boring(n) && !score.dropped(n, [], { unknown: true }))
+    .slice(0, 12);
+  if (!names.length) return;
 
-  for (const item of list) {
-    const c = coords[item.name];
-    const icon = L.divIcon({
-      className: '', iconSize: [44, 56], iconAnchor: [22, 56],
-      html: `<div class="pin"><i>${PIN_SM}</i></div>`,
-    });
-    const marker = L.marker([c.lat, c.lon], { icon }).addTo(mapObj);
-    const rec = { name: item.name, marker, dist: c.dist };
-    marker.on('click', () => pickPin(rec));
+  // 사진도 한 번에 받는다. 한 곳씩 부르면 열두 곳에 스물네 번이 나간다.
+  const shots = await wiki.thumbs(names, 160);
+  paintPins(names, coords, shots, keepView);
+  refinePins(at, raw, coords, shots, keepView).catch(() => {});
+}
+
+function paintPins(names, coords, shots, keepView) {
+  pins.forEach(p => p.marker.remove());
+  pins = [];
+  let w = 180, s = 90, e = -180, n = -90;
+  for (const name of names) {
+    const c = coords[name];
+    if (!c) continue;
+    const img = shots[name];
+    const el = document.createElement('div');
+    el.className = 'pin';
+    el.innerHTML = `<i>${img ? `<img src="${img}" alt="">` : PIN_SM}</i>`;
+    const marker = new maplibregl.Marker({ element: el, anchor: 'bottom' })
+      .setLngLat([c.lon, c.lat]).addTo(mapObj);
+    const rec = { name, marker, el, dist: c.dist, image: img };
+    el.addEventListener('click', ev => { ev.stopPropagation(); pickPin(rec); });
     pins.push(rec);
-    bounds.push([c.lat, c.lon]);
-
-    // 사진은 나중에 채운다. 없으면 핀 아이콘 그대로 둔다.
-    preview(item.name).then(d => {
-      rec.image = d.image; rec.summary = d.summary;
-      const el = marker.getElement()?.querySelector('.pin i');
-      if (el && d.image) el.innerHTML = `<img src="${d.image}" alt="">`;
-    }).catch(() => {});
+    w = Math.min(w, c.lon); e = Math.max(e, c.lon);
+    s = Math.min(s, c.lat); n = Math.max(n, c.lat);
   }
+  if (pins.length > 1 && !keepView)
+    mapObj.fitBounds([[w, s], [e, n]], { padding: { top: 80, bottom: 170, left: 56, right: 56 },
+                                        maxZoom: 14.6, animate: false });
+}
 
-  /* 꽂힌 곳들이 다 보이도록 맞춘다.
-     고정 배율로 두면 도심에서는 핀이 서로 겹쳐 무엇이 무엇인지 알 수 없다. */
-  if (bounds.length > 1) {
-    mapObj.fitBounds(bounds, { padding: [56, 110], maxZoom: 16, animate: false });
-  }
+/* 뒤에서 제대로 점수를 매겨, 목록이 달라졌을 때만 다시 그린다 */
+async function refinePins(at, raw, coords, shots, keepView) {
+  const ranked = await score.rank(raw.slice(0, 40).map(x => ({ name: x.title, dist: x.dist })),
+                                  { pos: state.pos });
+  if (mapAt !== at || !ranked.length) return;
+  const names = ranked.map(x => x.name).filter(n => coords[n]).slice(0, 12);
+  const now = pins.map(p => p.name).join('|');
+  if (!names.length || names.join('|') === now) return;
+  const more = await wiki.thumbs(names.filter(n => !shots[n]), 160);
+  if (mapAt !== at) return;
+  paintPins(names, coords, { ...shots, ...more }, true);
 }
 
 function pickPin(rec) {
-  if (pickedPin) pickedPin.marker.getElement()?.querySelector('.pin')?.classList.remove('picked');
+  if (pickedPin) pickedPin.el.classList.remove('picked');
   pickedPin = rec;
-  if (!rec) { $('placeCard').classList.add('hidden'); return; }
+  if (!rec) {
+    $('placeCard').classList.add('hidden');
+    els.mini.classList.remove('above-card');
+    if (mapMoved()) $('research').classList.remove('hidden');
+    return;
+  }
 
-  rec.marker.getElement()?.querySelector('.pin')?.classList.add('picked');
-  mapObj.panTo(rec.marker.getLatLng(), { animate: true, duration: .3 });
+  rec.el.classList.add('picked');
+  mapObj.easeTo({ center: rec.marker.getLngLat(), duration: 320 });
 
   $('pcName').textContent = rec.name;
   $('pcDesc').textContent = rec.summary
     || (rec.dist != null ? `여기서 약 ${rec.dist}m` : '해설을 준비할 수 있어요');
   $('pcThumb').innerHTML = rec.image ? `<img src="${rec.image}" alt="">` : PIN_SM;
   $('placeCard').classList.remove('hidden');
-  warmPlace(rec.name);          // 카드를 누르기 전에 자료부터 받아 둔다
+  els.mini.classList.add('above-card');     // 카드에 가리지 않게 위로
+  $('research').classList.add('hidden');    // 카드와 자리가 겹친다
+  warmPlace(rec.name);
 
   if (!rec.summary) preview(rec.name).then(d => {
     if (pickedPin !== rec) return;
@@ -1388,12 +1478,26 @@ function pickPin(rec) {
   }).catch(() => {});
 }
 
+/* 지금 보고 있는 자리에서 다시 찾는다 */
+async function researchHere() {
+  if (!mapObj) return;
+  const c = mapObj.getCenter();
+  const at = { lat: c.lat, lon: c.lng };
+  const btn = $('research');
+  // 줄어들며 사라지고 나서 핀을 꽂는다
+  btn.classList.add('going');
+  setTimeout(() => { btn.classList.add('hidden'); btn.classList.remove('going'); }, 190);
+  pickPin(null);
+  mapAt = at;
+  await dropPins(at, { keepView: true });
+}
+$('research').onclick = researchHere;
+
 $('pcBody').onclick = () => { if (pickedPin) playPlace(pickedPin.name); };
 
 /* 길찾기는 이 기기가 쓰는 지도 앱에 넘긴다.
    애플 지도와 구글 지도를 웹 화면에 직접 띄우려면 각각
-   유료 개발자 계정(MapKit JS)과 결제 등록된 키가 필요하다.
-   대신 주소 규칙으로 넘기면 아이폰은 애플 지도, 안드로이드는 구글 지도가 열린다. */
+   유료 개발자 계정(MapKit JS)과 결제 등록된 키가 필요하다. */
 function openInMaps(name, lat, lon) {
   const ua = navigator.userAgent;
   const apple = /iPhone|iPad|iPod|Macintosh/.test(ua);
@@ -1408,14 +1512,17 @@ function openInMaps(name, lat, lon) {
 }
 
 $('pcMap').onclick = e => {
-  e.stopPropagation();                    // 카드 전체를 누른 것으로 새지 않게
+  e.stopPropagation();
   if (!pickedPin) return;
-  const c = pickedPin.marker.getLatLng();
+  const c = pickedPin.marker.getLngLat();
   openInMaps(pickedPin.name, c.lat, c.lng);
 };
+
 $('recenter').onclick = () => {
   const at = state.pos || SEOUL;
-  mapObj && mapObj.setView([at.lat, at.lon], 14, { animate: true });
+  if (!mapObj) return;
+  mapObj.easeTo({ center: [at.lon, at.lat], zoom: 13.5, duration: 420 });
+  $('research').classList.add('hidden');
 };
 
 /* 검색 화면으로. 어디서 왔는지 기억해 두고 뒤로 가기를 띄운다. */
@@ -1433,40 +1540,46 @@ els.homeSearch.onclick = () => openSearch('home');
 
 /* 검색 문구를 한 글자씩 찍는다. 3초에 한 번 다시 시작한다.
    화면을 보고 있지 않을 때는 돌리지 않는다 — 배터리를 쓸 이유가 없다. */
-const TYPE_LINE = '어디의 이야기가 궁금하세요?';
-const TYPE_STEP = 210;      // 한 글자에 이만큼. 눈이 따라올 만큼 느리게.
-const TYPE_HOLD = 3000;     // 다 쓰고 나서 머무는 시간
-let typeTimer = 0, typeTick = 0;
+/* 검색창 문구는 몇 가지를 번갈아 보여준다.
+   한 글자씩 찍는 방식은 글자 수에 따라 속도가 달라지고 기계 소리가 난다.
+   통째로 부드럽게 갈아 끼우는 편이 눈이 편하다. */
+const TYPE_LINES = [
+  '오늘은 어떤 이야기를 들려 드릴까요?',
+  '지금 어디에 계신가요?',
+  '가보고 싶은 곳이 있나요?',
+  '오늘은 어디를 걸어 볼까요?',
+];
+const HOLD = 3600;          // 한 문구가 머무는 시간
+const SWAP = 500;           // 갈아 끼우는 데 걸리는 시간
+let typeTimer = 0, typeIdx = 0;
 
-function stopTyping() { clearTimeout(typeTimer); clearInterval(typeTick); }
+function stopTyping() { clearTimeout(typeTimer); }
 
 function runTyping() {
   stopTyping();
   const out = $('typeText');
   if (!out) return;
-  if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    out.textContent = TYPE_LINE;
-    return;
-  }
+  out.textContent = TYPE_LINES[typeIdx % TYPE_LINES.length];
+  out.classList.remove('in', 'out');
 
-  /* 한 바퀴가 끝날 때마다 다음 바퀴를 새로 예약한다.
-     고정 주기로 돌리면 화면이 뒤로 밀렸다 돌아왔을 때 박자가 어긋난다. */
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
   const cycle = () => {
     if (state.view !== 'home' || document.hidden) {
-      typeTimer = setTimeout(cycle, TYPE_HOLD);   // 안 보이면 그리지 않고 기다리기만
+      typeTimer = setTimeout(cycle, HOLD);       // 안 보이면 그냥 기다린다
       return;
     }
-    let i = 0;
-    out.textContent = '';
-    clearInterval(typeTick);
-    typeTick = setInterval(() => {
-      out.textContent = TYPE_LINE.slice(0, ++i);
-      if (i < TYPE_LINE.length) return;
-      clearInterval(typeTick);
-      typeTimer = setTimeout(cycle, TYPE_HOLD);   // 다 쓴 뒤 3초 머문다
-    }, TYPE_STEP);
+    out.classList.add('out');                    // 위로 올라가며 사라지고
+    typeTimer = setTimeout(() => {
+      typeIdx++;
+      out.textContent = TYPE_LINES[typeIdx % TYPE_LINES.length];
+      out.classList.remove('out');
+      out.classList.add('in');                   // 아래에서 올라오며 나타난다
+      requestAnimationFrame(() => requestAnimationFrame(() => out.classList.remove('in')));
+      typeTimer = setTimeout(cycle, HOLD);
+    }, SWAP);
   };
-  cycle();
+  typeTimer = setTimeout(cycle, HOLD);
 }
 
 document.addEventListener('visibilitychange', () => {
@@ -2130,6 +2243,7 @@ function goto(view) {
   document.querySelectorAll('.tab').forEach(t =>
     t.classList.toggle('on', t.dataset.view === view));
   els.mini.classList.toggle('hidden', view === 'player' || !P.lines.length);
+  if (view !== 'nearby') els.mini.classList.remove('above-card');
   if (view === 'home') renderHome();
   if (view === 'search') renderSearch();
   if (view === 'nearby') renderNearby();
@@ -2141,7 +2255,8 @@ document.querySelectorAll('.tab').forEach(b => b.onclick = () => {
   if (b.dataset.view === 'search') { cameFrom = ''; els.searchBack.classList.add('hidden'); }
   goto(b.dataset.view);
 });
-els.mini.onclick = e => { if (!e.target.closest('.ico')) goto('player'); };
+/* 원 안에 재생 표시가 들어 있으니, 누르면 재생·일시정지가 되는 게 자연스럽다.
+   플레이어 화면은 아래 탭으로 바로 갈 수 있다. */
 
 /* 해설 패널 — 플레이어 안에서 열고 닫는다 */
 function openScript() {
@@ -2209,6 +2324,7 @@ function togglePlay() {
 }
 els.play.onclick = togglePlay;
 els.miniPlay.onclick = e => { e.stopPropagation(); togglePlay(); };
+els.mini.onclick = () => togglePlay();
 els.prev.onclick = () => playFrom(P.idx - 1);
 els.next.onclick = () => playFrom(P.idx + 1);
 els.again.onclick = () => narrate({ again: true });
@@ -2427,6 +2543,8 @@ els.gvoiceList.onclick = e => {
   markVoiceButtons();
 };
 
+setTimeout(() => warmNearby(state.pos || SEOUL), 1200);   // 켜고 잠시 뒤 조용히
+
 (async () => {
   // 화면에서 뺀 엔진이 저장돼 있으면 되돌린다
   if (prefs.engine === 'google' || prefs.engine === 'eleven') {
@@ -2596,4 +2714,5 @@ if ('serviceWorker' in navigator) {
 }
 
 /* 디버그용 — 콘솔에서 docent.P / docent.state */
-window.docent = { P, state, prefs, buildChunks, playChunk, fetchAudio };
+window.docent = { P, state, prefs, buildChunks, playChunk, fetchAudio,
+  get map() { return mapObj; }, researchHere };
