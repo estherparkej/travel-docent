@@ -16,7 +16,9 @@ export async function nearby(lat, lon, radius = 1500, limit = 10) {
   try {
     const d = await get({ action: 'query', list: 'geosearch',
       gscoord: `${lat}|${lon}`, gsradius: radius, gslimit: limit });
-    return (d.query?.geosearch || []).map(x => ({ title: x.title, dist: Math.round(x.dist) }));
+    // 지도에 꽂으려면 좌표가 필요하다. 지오서치가 이미 주고 있었다.
+    return (d.query?.geosearch || []).map(x =>
+      ({ title: x.title, dist: Math.round(x.dist), lat: x.lat, lon: x.lon }));
   } catch (_) { return []; }
 }
 
@@ -124,7 +126,8 @@ export async function gather({ lat, lon, manual }) {
 async function gatherOnce({ lat, lon, manual }) {
   const base = {
     action: 'query',
-    prop: 'extracts|pageimages',
+    // 좌표는 '지금 그 자리에 서 있는지' 가려내는 데 쓴다. 같은 요청이라 값이 들지 않는다.
+    prop: 'extracts|pageimages|coordinates',
     explaintext: '1', exintro: '1', exlimit: 'max',
     piprop: 'thumbnail', pithumbsize: 900,
   };
@@ -143,7 +146,7 @@ async function gatherOnce({ lat, lon, manual }) {
   pages.sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
 
   if (!pages.length)
-    return { place: manual || '', primary: '', image: '', sources: [], nearby: [] };
+    return { place: manual || '', primary: '', image: '', sources: [], nearby: [], coord: null };
 
   const primary = pages[0];
   const sources = [];
@@ -157,12 +160,14 @@ async function gatherOnce({ lat, lon, manual }) {
     });
   });
 
+  const c = primary.coordinates?.[0];
   return {
     place: primary.title,
     primary: primary.title,
     image: primary.thumbnail?.source || '',
     sources,
     nearby: pages.slice(1, 6).map(x => x.title),
+    coord: c ? { lat: c.lat, lon: c.lon } : null,
   };
 }
 
