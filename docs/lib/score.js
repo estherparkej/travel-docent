@@ -188,9 +188,15 @@ const logNorm = v => Math.min(1, Math.log10(1 + v) / Math.log10(1 + 5000));
 /* ── 정렬 ────────────────────────────────────────────────
    현장에 있으면 거리가 가장 중요하고,
    집에서 찾아볼 때는 얼마나 알려졌고 들려줄 게 있는지가 중요하다. */
-export async function rank(items, { pos = null, weather = null } = {}) {
+export async function rank(items, { pos = null, weather = null, views: useViews = true } = {}) {
   const titles = items.map(i => i.name);
-  const [types, views] = await Promise.all([typesOf(titles), viewsOf(titles)]);
+  /* 조회수는 문서마다 요청이 한 번씩 나간다. 마흔 곳이면 마흔 번이다.
+     지도처럼 타일을 함께 받아야 하는 화면에서는 그 요청들이
+     대역폭을 다투어 지도가 늦어진다. 필요할 때만 부른다. */
+  const [types, views] = await Promise.all([
+    typesOf(titles),
+    useViews ? viewsOf(titles) : Promise.resolve({}),
+  ]);
 
   const now = new Date();
   const ctx = { rain: !!weather, hour: now.getHours(), month: now.getMonth() + 1 };
