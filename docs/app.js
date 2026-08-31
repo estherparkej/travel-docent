@@ -16,7 +16,21 @@ window.addEventListener('error', e => window.__boot.push(e.message + ' @' + e.li
    해설 한 편이 한 곡, 문장 하나가 가사 한 줄이다.
    문장 단위로 이전·다음·탐색이 되고, 아트워크에서 뽑은 색이 화면 배경이 된다. */
 
-const $ = id => document.getElementById(id);
+/* 화면에 없는 요소를 찾으면 빈 자리를 대신 내준다.
+   예전에는 여기서 null 이 나와 그 다음 줄에서 통째로 멈췄고,
+   그러면 탭도 버튼도 아무것도 걸리지 않아 앱이 죽은 것처럼 보였다.
+   (파일을 나눠 올리다 index.html 만 뒤처지면 실제로 그렇게 됐다.)
+   단추 하나가 없다고 앱 전체가 멈추면 안 된다. */
+const MISSING = new Set();
+function $(id) {
+  const el = document.getElementById(id);
+  if (el) return el;
+  if (!MISSING.has(id)) {
+    MISSING.add(id);
+    console.warn('[도슨트] 화면에 없는 요소:', id);
+  }
+  return document.createElement('span');   // 만지든 말든 아무 일도 없다
+}
 const els = {
   // 좌측 상단 상태 문구는 없앴다. 로딩은 버튼 스피너가 알려준다.
   status: $('statusLabel') || document.createElement('span'), name: $('placeName'), addr: $('placeAddr'),
