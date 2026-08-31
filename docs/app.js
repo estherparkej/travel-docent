@@ -1,14 +1,16 @@
 import * as wiki from './lib/wiki.js';
+import * as geo2 from './lib/geoindex.js';
+import * as score from './lib/score.js';
+
 import * as llm from './lib/llm.js';
 import * as tts from './lib/tts.js';
 import * as photos from './lib/photos.js';
-import { KR, WW, BANNERS } from './lib/places.js';
+import { KR, WW, BANNERS, KIDS, TOP_KR, TOP_WW, pickForDay } from './lib/places.js';
 import * as geo from './lib/geo.js';
 import { getKey, setKey, getKeys, provider } from './lib/keys.js';
 
 window.__boot = [];
 window.addEventListener('error', e => window.__boot.push(e.message + ' @' + e.lineno));
-
 
 /* 여행 도슨트 — 플레이어
    해설 한 편이 한 곡, 문장 하나가 가사 한 줄이다.
@@ -38,6 +40,19 @@ const els = {
   wwChips: $('wwChips'), wwList: $('wwList'), toTop: $('toTop'),
   pickList: $('pickList'), nearShelf: $('nearShelf'), nearList: $('nearList'),
   sugList: $('sugList'), searchForm: $('searchForm'), searchInput: $('searchInput'),
+  resultShelf: $('resultShelf'), resultTitle: $('resultTitle'), resultHero: $('resultHero'),
+  resultList: $('resultList'), resultEmpty: $('resultEmpty'),
+  drillDown: $('drillDown'), drillUp: $('drillUp'),
+  recentShelf: $('recentShelf'), recentList: $('recentList'),
+  sugShelf: $('sugShelf'), typeahead: $('typeahead'), searchClear: $('searchClear'),
+  resultCount: $('resultCount'), resultGroups: $('resultGroups'),
+  aroundShelf: $('aroundShelf'), aroundList: $('aroundList'), aroundCount: $('aroundCount'),
+  pickSeg: $('pickSeg'), homeSearch: $('homeSearch'),
+  playedShelf: $('playedShelf'), playedList: $('playedList'), playedMore: $('playedMore'),
+  kidSeg: $('kidSeg'), kidList: $('kidList'), searchBack: $('searchBack'),
+  scThumb: $('scThumb'), scSub: $('scSub'), scPlay: $('scPlay'),
+  scTrack: $('scTrack'), scFill: $('scFill'), scCur: $('scCur'), scDur: $('scDur'),
+  downChips: $('downChips'), upChips: $('upChips'),
   logList: $('logList'), logEmpty: $('logEmpty'),
   mini: $('mini'), miniImg: $('miniImg'), miniEq: $('miniEq'), miniTitle: $('miniTitle'),
   miniSub: $('miniSub'), miniPlay: $('miniPlay'), miniRing: $('miniRing'),
@@ -237,7 +252,6 @@ function applyArtColor(url) {
   };
   im.src = url;
 }
-
 
 /* ── 목소리 ──────────────────────────────────────────────── */
 /* 애플 기기의 한국어 음성 중 도슨트로 쓸 수 있는 건 사실상 유나 하나뿐이다.
@@ -662,6 +676,17 @@ function paint() {
   const replay = P.ended && !on;
   // <svg> 는 HTML 요소가 아니라 .hidden 프로퍼티가 없다.
   // 속성을 직접 넣고 빼야 실제로 숨겨지고 드러난다.
+  /* 해설 화면의 조작부도 같은 상태를 따라간다.
+     같은 것을 두 군데서 그리게 되므로 한 곳에서 함께 갱신한다. */
+  if (!$('scriptPanel').classList.contains('hidden')) {
+    els.scPlay.innerHTML = busy ? ICO_SPIN_SM : on ? ICO_PAUSE_SM : ICO_PLAY_SM;
+    els.scPlay.setAttribute('aria-label', on ? '일시정지' : '재생');
+    els.scFill.style.width = pct + '%';
+    els.scCur.textContent = fmt(cur);
+    els.scDur.textContent = !dur ? '--:--'
+      : (P.playing && !P.ended) ? '-' + fmt(Math.max(0, dur - cur)) : fmt(dur);
+  }
+
   showIcon(els.icoWait, busy);
   showIcon(els.icoReplay, !busy && replay);
   showIcon(els.icoPlay, !busy && !on && !replay);
@@ -802,7 +827,11 @@ async function narrate({ again = false } = {}) {
       .catch(() => {});
 
     const len = state.mode === 'summary' ? 'short' : prefs.length;
-    for await (const text of llm.stream(data, { length: len, heard: state.heard, again })) {
+    const here = standingHere(data);
+    /* 아이와 함께에서 고른 곳이면 그 학년에 맞춘 말로 읽는다 */
+    const tone = kidPlaces.has(state.manual)
+      ? (KIDS[prefs.kidGrade || 'elementary'] || KIDS.elementary).tone : '';
+    for await (const text of llm.stream(data, { length: len, heard: state.heard, again, here, tone })) {
       got = true;
       buf += text;
       const { sentences, rest } = drainSentences(buf);
@@ -903,6 +932,17 @@ function showError(msg) {
   els.transcript.appendChild(el);
 }
 
+/* 지금 그 자리에 서 있는가.
+   GPS 로 찾은 자리면 당연히 '여기'다.
+   검색으로 고른 곳이라도 마침 가까이 있으면 '여기'로 본다. */
+function standingHere(data) {
+  if (!state.manual) return true;              // 위치로 찾은 해설
+  if (!state.pos) return false;                // 위치를 모르면 '이곳은'
+  const c = data && data.coord;
+  if (!c || c.lat == null) return false;
+  return metersBetween(state.pos, c) < 2000;   // 2km 안이면 서 있는 것으로 본다
+}
+
 /* ── 지나온 길 ───────────────────────────────────────────── */
 function remember(place) {
   if (!place) return;
@@ -911,6 +951,7 @@ function remember(place) {
   state.heard = state.heard.slice(-40);
   localStorage.setItem('heard', JSON.stringify(state.heard));
   renderLog();
+  renderPlayed();
 }
 
 function renderLog() {
@@ -1034,10 +1075,23 @@ function cardHTML(place, sub) {
     <span class="go">${GO}</span></button>`;
 }
 
+/* 순위를 앞에 세운 목록 */
+function fillRanked(host, places) {
+  fillCards(host, places);
+  [...host.children].forEach((btn, i) => {
+    const n = document.createElement('span');
+    n.className = 'rank';
+    n.textContent = i + 1;
+    btn.prepend(n);
+  });
+}
+
 function fillCards(host, places, subs) {
   host.innerHTML = places.map((p, i) => cardHTML(p, subs && subs[i])).join('');
-  // 앞쪽 두어 개는 미리 받아둔다. 누르는 순간 기다림이 없다.
-  places.slice(0, 2).forEach(p => wiki.gather({ manual: p }).catch(() => {}));
+  /* 화면에 보이는 카드는 모두 미리 받아 둔다.
+     한 카드에 한 번의 요청이고, 받아 둔 것은 캐시에 남아 다시 부르지 않는다.
+     누르는 순간 자료를 기다릴 일이 없어진다. */
+  places.slice(0, 8).forEach(p => wiki.gather({ manual: p }).catch(() => {}));
   [...host.children].forEach(btn => {
     const name = btn.dataset.place;
     btn.onclick = () => playPlace(name);
@@ -1049,7 +1103,14 @@ function fillCards(host, places, subs) {
 }
 
 /* 카드나 검색에서 고른 장소를 바로 재생 */
+/* 카드를 누른 순간 자료를 먼저 부른다.
+   화면이 넘어가는 사이에 받아 두면 재생 버튼을 누를 때 이미 도착해 있다. */
+function warmPlace(name) {
+  if (name) wiki.gather({ manual: name }).catch(() => {});
+}
+
 function playPlace(name) {
+  warmPlace(name);
   state.manual = name;
   els.name.textContent = name;
   els.addr.textContent = '';
@@ -1072,20 +1133,24 @@ async function bannerImage(b) {
   return { url: d.image, credit: '위키백과' };
 }
 
+/* 오늘 보여줄 여덟 장. 아침 7시에 바뀐다. */
+let TODAY = pickForDay(BANNERS, 8);
+
 function buildHero() {
-  const slides = BANNERS.concat([BANNERS[0]]);   // 끝에 첫 장을 덧붙여 이어지게
+  const slides = TODAY.concat([TODAY[0]]);   // 끝에 첫 장을 덧붙여 이어지게
   els.heroTrack.innerHTML = slides.map((b, i) => `
     <div class="hslide" data-place="${b.place}">
       <img alt="" loading="${i < 2 ? 'eager' : 'lazy'}">
       <span class="hveil"></span>
-      <span class="htxt"><span class="htag">${b.tag}</span><strong>${b.lead}, ${b.place}</strong></span>
+      <span class="htxt"><span class="htag">${b.tag}</span><strong>${b.lead}, ${b.place}</strong>
+        <em class="hdesc">${b.desc || ''}</em></span>
     </div>`).join('');
-  els.heroDots.innerHTML = BANNERS.map((_, i) =>
+  els.heroDots.innerHTML = TODAY.map((_, i) =>
     `<i class="${i ? '' : 'on'}"></i>`).join('');
 
   [...els.heroTrack.children].forEach((el, i) => {
     el.onclick = () => { if (Math.abs(hero.dx) < 8) playPlace(el.dataset.place); };
-    bannerImage(BANNERS[i % BANNERS.length]).then(d => {
+    bannerImage(TODAY[i % TODAY.length]).then(d => {
       if (d.url) el.querySelector('img').src = d.url;
     }).catch(() => {});
   });
@@ -1103,14 +1168,14 @@ function place(i, animate = true, ms = SLIDE_MS) {
   els.heroTrack.style.transition = animate
     ? `transform ${ms}ms cubic-bezier(.22,.61,.36,1)` : 'none';
   els.heroTrack.style.transform = `translate3d(${-i * hero.w}px,0,0)`;
-  const real = i % BANNERS.length;
+  const real = i % TODAY.length;
   [...els.heroDots.children].forEach((d, k) => d.classList.toggle('on', k === real));
   [...els.heroTrack.children].forEach((el, k) => el.classList.toggle('on', k === i));
 }
 
 function nextHero() {
   place(hero.i + 1);
-  if (hero.i >= BANNERS.length) {              // 덧붙인 장에 닿으면 조용히 처음으로
+  if (hero.i >= TODAY.length) {              // 덧붙인 장에 닿으면 조용히 처음으로
     setTimeout(() => place(0, false), SLIDE_MS + 40);
   }
 }
@@ -1140,9 +1205,9 @@ function heroDrag() {
     const th = Math.min(60, hero.w * 0.12);      // 화면의 12%만 밀어도 넘어간다
     if (hero.dx < -th) i++;
     else if (hero.dx > th) i--;
-    if (i < 0) { place(BANNERS.length, false); i = BANNERS.length - 1; }
+    if (i < 0) { place(TODAY.length, false); i = TODAY.length - 1; }
     place(i, true, SWIPE_MS);
-    if (i >= BANNERS.length) setTimeout(() => place(0, false), SWIPE_MS + 40);
+    if (i >= TODAY.length) setTimeout(() => place(0, false), SWIPE_MS + 40);
     setTimeout(startHero, 1200);
   };
   wrap.addEventListener('pointerup', end);
@@ -1169,6 +1234,254 @@ function buildRegion(data, chipHost, listHost) {
 }
 
 let homeReady = false;
+/* 들었던 곳 여섯 개와 '더보기'. 홈에서 바로 이어 듣게 한다. */
+function renderPlayed() {
+  const list = state.heard.slice().reverse().slice(0, 6);
+  if (!list.length) { els.playedShelf.classList.add('hidden'); return; }
+  els.playedShelf.classList.remove('hidden');
+  els.playedList.innerHTML = list.map(q =>
+    `<div class="recent" data-q="${q}"><span class="rthumb">${PIN_SM}</span><b>${q}</b></div>`).join('');
+  [...els.playedList.children].forEach(el => {
+    const q = el.dataset.q;
+    el.onclick = () => playPlace(q);
+    preview(q).then(d => {
+      if (d.image) el.querySelector('.rthumb').innerHTML = `<img src="${d.image}" alt="">`;
+    }).catch(() => {});
+  });
+}
+els.playedMore.onclick = () => goto('history');
+
+/* 아이와 함께 — 학년마다 갈 곳도, 들려줄 깊이도 다르다 */
+let kidPlaces = new Set();
+function renderKids(grade) {
+  prefs.kidGrade = grade;
+  savePrefs();
+  [...els.kidSeg.children].forEach(b => b.classList.toggle('on', b.dataset.v === grade));
+  const set = KIDS[grade] || KIDS.elementary;
+  const picks = pickForDay(set.places, 4);
+  kidPlaces = new Set(picks);
+  fillCards(els.kidList, picks);
+}
+els.kidSeg.onclick = e => {
+  const b = e.target.closest('button');
+  if (b && b.dataset.v !== prefs.kidGrade) renderKids(b.dataset.v);
+};
+
+/* ── 내 주변 ──────────────────────────────────────────────
+   지도 위에 이야깃거리가 있는 곳만 꽂는다.
+   지도 라이브러리는 이 화면을 처음 열 때만 받아온다 — 쓰지 않는 사람에게
+   45KB 를 미리 물릴 이유가 없다. */
+const MAP_JS = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.js';
+let mapObj = null, mapReady = null, pins = [], pickedPin = null, mapAt = null;
+
+function loadMapLib() {
+  if (window.L) return Promise.resolve();
+  if (mapReady) return mapReady;
+  mapReady = new Promise((ok, no) => {
+    const el = document.createElement('script');
+    el.src = MAP_JS; el.onload = ok; el.onerror = no;
+    document.head.appendChild(el);
+  });
+  return mapReady;
+}
+
+const SEOUL = { lat: 37.5665, lon: 126.9780 };
+
+async function renderNearby() {
+  try { await loadMapLib(); } catch (_) {
+    $('mapHint').textContent = '지도를 불러오지 못했어요. 인터넷 연결을 확인해 주세요.';
+    return;
+  }
+  const at = state.pos || SEOUL;
+  if (!mapObj) {
+    mapObj = L.map('map', { zoomControl: false, attributionControl: true })
+      .setView([at.lat, at.lon], 14);
+    /* CARTO 의 밝은 지도가 앱 색과 잘 맞았는데, 이제 키를 요구한다.
+       ('API KEY REQUIRED' 가 찍힌 타일이 내려온다.)
+       OpenStreetMap 기본 타일은 키 없이 쓸 수 있다. */
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19, attribution: '&copy; OpenStreetMap',
+    }).addTo(mapObj);
+    mapObj.on('click', () => pickPin(null));
+  }
+  // 숨겨진 채로 만들어지면 크기를 0 으로 잰다. 보이고 난 뒤 몇 번 더 재게 한다.
+  [0, 80, 300].forEach(ms => setTimeout(() => mapObj.invalidateSize(), ms));
+
+  // 같은 자리를 다시 열면 그대로 둔다
+  if (mapAt && metersBetween(mapAt, at) < 300 && pins.length) return;
+  mapAt = at;
+  mapObj.setView([at.lat, at.lon], 14);
+  await dropPins(at);
+}
+
+async function dropPins(at) {
+  const hint = $('mapHint');
+  hint.classList.remove('gone');
+  hint.textContent = '주변을 찾는 중이에요';
+  pins.forEach(p => mapObj.removeLayer(p.marker));
+  pins = [];
+
+  const raw = await wiki.nearby(at.lat, at.lon, 8000, 60);
+  const coords = Object.fromEntries(raw.map(x => [x.title, { lat: x.lat, lon: x.lon, dist: x.dist }]));
+  let list = raw.map(x => ({ name: x.title, dist: x.dist }));
+  try {
+    const rain = state.pos ? await score.isRaining(at.lat, at.lon) : false;
+    const ranked = await score.rank(list, { pos: state.pos, weather: rain });
+    if (ranked.length) list = ranked;
+  } catch (_) {}
+  list = list.filter(x => coords[x.name]).slice(0, 12);
+
+  if (!list.length) {
+    hint.textContent = '이 근처에는 들려드릴 곳이 아직 없어요';
+    return;
+  }
+  hint.classList.add('gone');
+  const bounds = [];
+
+  for (const item of list) {
+    const c = coords[item.name];
+    const icon = L.divIcon({
+      className: '', iconSize: [44, 56], iconAnchor: [22, 56],
+      html: `<div class="pin"><i>${PIN_SM}</i></div>`,
+    });
+    const marker = L.marker([c.lat, c.lon], { icon }).addTo(mapObj);
+    const rec = { name: item.name, marker, dist: c.dist };
+    marker.on('click', () => pickPin(rec));
+    pins.push(rec);
+    bounds.push([c.lat, c.lon]);
+
+    // 사진은 나중에 채운다. 없으면 핀 아이콘 그대로 둔다.
+    preview(item.name).then(d => {
+      rec.image = d.image; rec.summary = d.summary;
+      const el = marker.getElement()?.querySelector('.pin i');
+      if (el && d.image) el.innerHTML = `<img src="${d.image}" alt="">`;
+    }).catch(() => {});
+  }
+
+  /* 꽂힌 곳들이 다 보이도록 맞춘다.
+     고정 배율로 두면 도심에서는 핀이 서로 겹쳐 무엇이 무엇인지 알 수 없다. */
+  if (bounds.length > 1) {
+    mapObj.fitBounds(bounds, { padding: [56, 110], maxZoom: 16, animate: false });
+  }
+}
+
+function pickPin(rec) {
+  if (pickedPin) pickedPin.marker.getElement()?.querySelector('.pin')?.classList.remove('picked');
+  pickedPin = rec;
+  if (!rec) { $('placeCard').classList.add('hidden'); return; }
+
+  rec.marker.getElement()?.querySelector('.pin')?.classList.add('picked');
+  mapObj.panTo(rec.marker.getLatLng(), { animate: true, duration: .3 });
+
+  $('pcName').textContent = rec.name;
+  $('pcDesc').textContent = rec.summary
+    || (rec.dist != null ? `여기서 약 ${rec.dist}m` : '해설을 준비할 수 있어요');
+  $('pcThumb').innerHTML = rec.image ? `<img src="${rec.image}" alt="">` : PIN_SM;
+  $('placeCard').classList.remove('hidden');
+  warmPlace(rec.name);          // 카드를 누르기 전에 자료부터 받아 둔다
+
+  if (!rec.summary) preview(rec.name).then(d => {
+    if (pickedPin !== rec) return;
+    rec.image = d.image; rec.summary = d.summary;
+    if (d.summary) $('pcDesc').textContent = d.summary;
+    if (d.image) $('pcThumb').innerHTML = `<img src="${d.image}" alt="">`;
+  }).catch(() => {});
+}
+
+$('pcBody').onclick = () => { if (pickedPin) playPlace(pickedPin.name); };
+
+/* 길찾기는 이 기기가 쓰는 지도 앱에 넘긴다.
+   애플 지도와 구글 지도를 웹 화면에 직접 띄우려면 각각
+   유료 개발자 계정(MapKit JS)과 결제 등록된 키가 필요하다.
+   대신 주소 규칙으로 넘기면 아이폰은 애플 지도, 안드로이드는 구글 지도가 열린다. */
+function openInMaps(name, lat, lon) {
+  const ua = navigator.userAgent;
+  const apple = /iPhone|iPad|iPod|Macintosh/.test(ua);
+  const android = /Android/.test(ua);
+  const q = encodeURIComponent(name);
+  const url = apple
+    ? `https://maps.apple.com/?q=${q}&ll=${lat},${lon}`
+    : android
+      ? `geo:${lat},${lon}?q=${lat},${lon}(${q})`
+      : `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`;
+  window.open(url, '_blank', 'noopener');
+}
+
+$('pcMap').onclick = e => {
+  e.stopPropagation();                    // 카드 전체를 누른 것으로 새지 않게
+  if (!pickedPin) return;
+  const c = pickedPin.marker.getLatLng();
+  openInMaps(pickedPin.name, c.lat, c.lng);
+};
+$('recenter').onclick = () => {
+  const at = state.pos || SEOUL;
+  mapObj && mapObj.setView([at.lat, at.lon], 14, { animate: true });
+};
+
+/* 검색 화면으로. 어디서 왔는지 기억해 두고 뒤로 가기를 띄운다. */
+let cameFrom = '';
+function openSearch(from) {
+  cameFrom = from || '';
+  els.searchBack.classList.toggle('hidden', !cameFrom);
+  goto('search');
+  /* 저절로 커서를 놓지 않는다.
+     들어오자마자 자판이 올라오고 아래가 접히면, 둘러보러 온 사람은
+     자기가 하지 않은 일이 벌어진 것처럼 느낀다.
+     입력창을 직접 눌렀을 때만 검색하는 상태로 들어간다. */
+}
+els.homeSearch.onclick = () => openSearch('home');
+
+/* 검색 문구를 한 글자씩 찍는다. 3초에 한 번 다시 시작한다.
+   화면을 보고 있지 않을 때는 돌리지 않는다 — 배터리를 쓸 이유가 없다. */
+const TYPE_LINE = '어디의 이야기가 궁금하세요?';
+const TYPE_STEP = 210;      // 한 글자에 이만큼. 눈이 따라올 만큼 느리게.
+const TYPE_HOLD = 3000;     // 다 쓰고 나서 머무는 시간
+let typeTimer = 0, typeTick = 0;
+
+function stopTyping() { clearTimeout(typeTimer); clearInterval(typeTick); }
+
+function runTyping() {
+  stopTyping();
+  const out = $('typeText');
+  if (!out) return;
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    out.textContent = TYPE_LINE;
+    return;
+  }
+
+  /* 한 바퀴가 끝날 때마다 다음 바퀴를 새로 예약한다.
+     고정 주기로 돌리면 화면이 뒤로 밀렸다 돌아왔을 때 박자가 어긋난다. */
+  const cycle = () => {
+    if (state.view !== 'home' || document.hidden) {
+      typeTimer = setTimeout(cycle, TYPE_HOLD);   // 안 보이면 그리지 않고 기다리기만
+      return;
+    }
+    let i = 0;
+    out.textContent = '';
+    clearInterval(typeTick);
+    typeTick = setInterval(() => {
+      out.textContent = TYPE_LINE.slice(0, ++i);
+      if (i < TYPE_LINE.length) return;
+      clearInterval(typeTick);
+      typeTimer = setTimeout(cycle, TYPE_HOLD);   // 다 쓴 뒤 3초 머문다
+    }, TYPE_STEP);
+  };
+  cycle();
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) stopTyping();
+  else if (state.view === 'home') runTyping();
+});
+$('playerSearch').onclick = () => openSearch('player');
+$('histSearch').onclick = () => openSearch('history');
+els.searchBack.onclick = () => {
+  const back = cameFrom || 'home';
+  cameFrom = '';
+  els.searchBack.classList.add('hidden');
+  goto(back);
+};
+
 function renderHome() {
   if (homeReady) return;
   homeReady = true;
@@ -1176,8 +1489,11 @@ function renderHome() {
   
   buildHero();
   heroDrag();
-  wiki.gather({ manual: BANNERS[new Date().getDate() % BANNERS.length].place }).catch(() => {});
-  fillCards(els.pickList, PICKS.slice(0, 5));
+  wiki.gather({ manual: TODAY[0].place }).catch(() => {});
+  renderPlayed();
+  renderKids(prefs.kidGrade || 'elementary');
+  runTyping();
+  fillCards(els.pickList, pickForDay(PICKS, 3, 5));   // 오늘의 추천 세 곳
   buildRegion(KR, els.krChips, els.krList);
   buildRegion(WW, els.wwChips, els.wwList);
 
@@ -1185,29 +1501,362 @@ function renderHome() {
     $('view-home').scrollTo({ top: 0, behavior: 'smooth' });
 }
 
+/* 추천 도슨트 — 국내와 해외를 나눠 1~10위로 보여준다 */
+function drawPicks(which) {
+  prefs.pickTab = which;
+  savePrefs();
+  [...els.pickSeg.children].forEach(b => b.classList.toggle('on', b.dataset.v === which));
+  fillRanked(els.sugList, which === 'kr' ? TOP_KR : TOP_WW);
+}
+els.pickSeg.onclick = e => {
+  const b = e.target.closest('button');
+  if (b && b.dataset.v !== prefs.pickTab) drawPicks(b.dataset.v);
+};
+
 let searchReady = false;
 function renderSearch() {
+  searchMode(false);
   if (!searchReady) {
     searchReady = true;
-    fillCards(els.sugList, PICKS.slice(0, 6));
+    drawPicks(prefs.pickTab || 'kr');
   }
   if (state.pos && !els.nearList.children.length) {
-    wiki.nearby(state.pos.lat, state.pos.lon, 3000, 12).then(list => {
-      const near = list.slice(0, 6);
+    /* 여기에도 같은 잣대를 댄다. 예전에는 거르지 않아서
+       동안초등학교·귀인초등학교가 '가까운 도슨트'로 올라왔다. */
+    wiki.nearby(state.pos.lat, state.pos.lon, 5000, 60).then(async list => {
+      if (!list.length) return;
+      const dist = Object.fromEntries(list.map(x => [x.title, x.dist]));
+      let picked = list.map(x => ({ name: x.title, dist: x.dist }));
+      try {
+        const rain = await score.isRaining(state.pos.lat, state.pos.lon);
+        const ranked = await score.rank(picked, { pos: state.pos, weather: rain });
+        if (ranked.length) picked = ranked;
+      } catch (_) {}
+      const near = picked.slice(0, 6);
       if (!near.length) return;
       els.nearShelf.classList.remove('hidden');
-      fillCards(els.nearList, near.map(x => x.title),
-                near.map(x => `여기서 약 ${x.dist}m`));
+      fillCards(els.nearList, near.map(x => x.name),
+                near.map(x => `여기서 약 ${dist[x.name] ?? '?'}m`));
     }).catch(() => {});
   }
 }
+
+/* ── 검색 ────────────────────────────────────────────────
+   예전에는 무엇을 치든 곧바로 재생이 시작됐다.
+   '프랑스'처럼 넓은 말을 친 사람에게는 고를 기회가 없었다.
+   이제 검색어가 나라인지 동네인지 장소인지 가려서 다르게 답한다. */
+let searchSeq = 0;
+
+function heroHTML(name, note) {
+  return `<button class="hero-card" data-place="${name}">
+    <span class="hero-meta"><b>${name}</b><em>${note}</em></span>
+    <span class="hero-play" aria-hidden="true">${GO}</span></button>`;
+}
+
+async function runSearch(q) {
+  const seq = ++searchSeq;
+  searchMode(false);
+  els.sugShelf.classList.add('hidden');
+  els.resultShelf.classList.remove('hidden');
+  els.resultHero.innerHTML = '';
+  els.resultList.innerHTML = '';
+  els.resultGroups.innerHTML = '';
+  els.resultCount.textContent = '';
+  els.aroundShelf.classList.add('hidden');
+  els.resultEmpty.classList.add('hidden');
+  els.drillDown.classList.add('hidden');
+  els.drillUp.classList.add('hidden');
+  els.resultTitle.textContent = `'${q}' 찾는 중`;
+
+  let hit = null;
+  try { hit = await geo2.identify(q); } catch (_) {}
+  if (seq !== searchSeq) return;
+
+  if (!hit) {
+    // 위키데이터가 모르는 말이어도 위키백과에는 있을 수 있다
+    els.resultTitle.textContent = `'${q}'`;
+    els.resultHero.innerHTML = heroHTML(q, '이 이름으로 해설을 만들어 볼게요');
+    bindPlaces(els.resultHero);
+    return;
+  }
+
+  const tier = hit.tier;
+  els.resultTitle.textContent = `${hit.label} · ${geo2.TIER_LABEL[tier]}`;
+
+  if (tier === 'landmark') {
+    // 장소를 정확히 찾아 친 경우다. 예전의 빠른 길을 그대로 남겨 둔다.
+    els.resultHero.innerHTML = heroHTML(hit.label, hit.desc || '바로 들어보세요');
+    bindPlaces(els.resultHero);
+    drawDrills(hit, seq);
+    nearbyOf(hit, seq, 6, '이 근처도 함께');
+    return;
+  }
+
+  els.resultEmpty.textContent = '이 지역의 장소를 찾는 중이에요.';
+  els.resultEmpty.classList.remove('hidden');
+  drawDrills(hit, seq);
+
+  let names = [];
+  if (tier === 'district') {
+    /* 동네는 위키데이터에 걸린 명소가 거의 없다(성수동은 자기 자신 하나뿐).
+       좌표 둘레를 훑는 쪽이 훨씬 촘촘하다. */
+    try {
+      // 여기서 미리 추리면 아파트가 자리를 차지한다. 점수 매기기에 그대로 넘긴다.
+      const list = await wiki.nearby(hit.lat, hit.lon, 2500, 60);
+      names = list.map(x => x.title).filter(n => !geo2.adminName(n));
+    } catch (_) {}
+  } else {
+    /* 나라·지역·도시는 위키데이터가 낫다.
+       지오서치는 반경이 10km까지라 경주시를 쳐도 불국사가 안 잡힌다. */
+    try { names = (await geo2.topIn(hit.id, tier, 12)).map(x => x.name); } catch (_) {}
+    if (!names.length && hit.lat != null) {
+      try {
+        const list = await wiki.nearby(hit.lat, hit.lon, 10000, 150);
+        names = list.map(x => x.title).filter(n => !geo2.adminName(n));
+      } catch (_) {}
+    }
+  }
+  if (seq !== searchSeq) return;
+
+  names = names.filter(n => n && n !== hit.label && !geo2.boring(n));
+  els.resultEmpty.classList.add('hidden');
+  if (!names.length) {
+    els.resultEmpty.textContent = '이 지역에서 들려드릴 곳을 아직 찾지 못했어요. 장소 이름으로 검색해 보세요.';
+    els.resultEmpty.classList.remove('hidden');
+    return;
+  }
+
+  // 먼저 보여주고 나서 줄을 세운다. 점수를 다 매길 때까지 빈 화면으로 두지 않는다.
+  fillCards(els.resultList, names.slice(0, 8));
+  els.resultCount.textContent = `${names.length}곳`;
+
+  /* 이야깃거리가 없는 곳을 걷어내고, 가까움·이야기·인지도·지금 상황으로 다시 줄을 세운다.
+     현장에 있으면 거리가 가장 무겁고, 집에서 찾아볼 때는 인지도가 가장 무겁다. */
+  try {
+    const rain = state.pos ? await score.isRaining(state.pos.lat, state.pos.lon) : false;
+    const ranked = await score.rank(names.slice(0, 40).map(n => ({ name: n })),
+                                    { pos: state.pos, weather: rain });
+    if (seq !== searchSeq || !ranked.length) return;
+    els.resultList.innerHTML = '';
+    els.resultCount.textContent = `${ranked.length}곳`;
+    drawGroups(ranked.slice(0, 24));
+    aroundOf(hit, seq, ranked.map(x => x.name));
+  } catch (_) { /* 점수를 못 매기면 처음 순서 그대로 둔다 */ }
+}
+
+/* 좁혀 들어가는 칩과 넓혀 나가는 칩.
+   나라·지역에서는 아래로 좁히고, 도시·동네·장소에서는 위로 넓힌다.
+   목록과 따로 부르기 때문에 늦게 도착해도 결과를 기다리게 하지 않는다. */
+function drawChips(host, box, list) {
+  // 비었으면 지운다. 남겨 두면 다음 검색에 지난 칩이 딸려 온다.
+  if (!list.length) { host.innerHTML = ''; box.classList.add('hidden'); return; }
+  host.innerHTML = list.map(x => `<button class="rchip" data-go="${x.name}">${x.name}</button>`).join('');
+  [...host.children].forEach(b => {
+    b.onclick = () => {
+      els.searchInput.value = b.dataset.go;
+      $('view-search').scrollTo({ top: 0, behavior: 'smooth' });
+      runSearch(b.dataset.go);
+    };
+  });
+  box.classList.remove('hidden');
+}
+
+async function drawDrills(hit, seq) {
+  const wantDown = hit.tier === 'country' || hit.tier === 'region';
+  const wantUp = hit.tier !== 'country';
+  const [down, up] = await Promise.all([
+    wantDown ? geo2.children(hit.id, hit.tier, 8).catch(() => []) : Promise.resolve([]),
+    wantUp ? geo2.parents(hit.id, 3).catch(() => []) : Promise.resolve([]),
+  ]);
+  if (seq !== searchSeq) return;
+  drawChips(els.downChips, els.drillDown, down);
+  drawChips(els.upChips, els.drillUp, up.filter(x => x.name !== hit.label));
+}
+
+/* 성격이 같은 것끼리 묶어 보여준다.
+   한 줄로 스무 개를 늘어놓는 것보다 '절과 사당 4곳' 처럼 나뉘어 있는 편이 고르기 쉽다. */
+function drawGroups(items) {
+  const groups = score.grouped(items);
+  els.resultGroups.innerHTML = groups.map((g, i) =>
+    `<div class="group"><h3>${g.label} ${g.items.length}곳</h3>
+       <div class="cards" id="grp-${i}"></div></div>`).join('');
+  groups.forEach((g, i) => fillCards($(`grp-${i}`), g.items.map(x => x.name)));
+}
+
+/* 검색한 곳 둘레에서, 목록에 없는 곳들을 더 권한다.
+   같은 잣대로 고르되 이미 보여준 것은 뺀다. */
+async function aroundOf(hit, seq, already) {
+  if (!hit || hit.lat == null) return;
+  try {
+    const list = await wiki.nearby(hit.lat, hit.lon, 6000, 60);
+    if (seq !== searchSeq) return;
+    const seen = new Set(already);
+    const cand = list.map(x => x.title)
+      .filter(n => !seen.has(n) && n !== hit.label && !geo2.adminName(n) && !geo2.boring(n));
+    if (!cand.length) return;
+    const ranked = await score.rank(cand.slice(0, 30).map(n => ({ name: n })), { pos: state.pos });
+    if (seq !== searchSeq || !ranked.length) return;
+    els.aroundCount.textContent = `${Math.min(ranked.length, 6)}곳`;
+    fillCards(els.aroundList, ranked.slice(0, 6).map(x => x.name));
+    els.aroundShelf.classList.remove('hidden');
+  } catch (_) {}
+}
+
+/* 카드가 아닌 곳(히어로 카드)에도 같은 동작을 붙인다 */
+function bindPlaces(host) {
+  [...host.querySelectorAll('[data-place]')].forEach(el => {
+    el.onclick = () => playPlace(el.dataset.place);
+  });
+}
+
+async function nearbyOf(hit, seq, n, title) {
+  if (hit.lat == null) return;
+  try {
+    const list = await wiki.nearby(hit.lat, hit.lon, 4000, n + 4);
+    if (seq !== searchSeq) return;
+    const names = list.map(x => x.title)
+      .filter(x => x !== hit.label && !geo2.boring(x)).slice(0, n);
+    if (!names.length) return;
+    els.resultTitle.textContent += ` — ${title}`;
+    fillCards(els.resultList, names);
+  } catch (_) {}
+}
+
+/* ── 최근 검색 ───────────────────────────────────────────
+   찾아본 말을 기억해 두고 썸네일과 함께 다시 보여준다. */
+let searched = [];
+try { searched = JSON.parse(localStorage.getItem('searched') || '[]'); } catch (_) {}
+
+function rememberSearch(q) {
+  searched = [q, ...searched.filter(x => x !== q)].slice(0, 12);
+  localStorage.setItem('searched', JSON.stringify(searched));
+  renderRecents();
+}
+
+function forgetSearch(q) {
+  searched = searched.filter(x => x !== q);
+  localStorage.setItem('searched', JSON.stringify(searched));
+  renderRecents();
+}
+
+function renderRecents() {
+  if (!searched.length) { els.recentShelf.classList.add('hidden'); return; }
+  els.recentShelf.classList.remove('hidden');
+  els.recentList.innerHTML = searched.map(q =>
+    `<div class="recent" data-q="${q}">
+       <span class="rthumb">${PIN_SM}</span><b>${q}</b>
+       <button class="rdel" aria-label="${q} 검색 기록 지우기">
+         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="m7.5 7.5 9 9M16.5 7.5l-9 9"/></svg>
+       </button>
+     </div>`).join('');
+  [...els.recentList.children].forEach(btn => {
+    const q = btn.dataset.q;
+    btn.querySelector('.rdel').onclick = e => { e.stopPropagation(); forgetSearch(q); };
+    btn.onclick = () => { els.searchInput.value = q; showClear(); runSearch(q); };
+    // 썸네일은 나중에 채워 넣는다. 없으면 핀 아이콘 그대로 둔다.
+    preview(q).then(d => {
+      if (d.image) btn.querySelector('.rthumb').innerHTML = `<img src="${d.image}" alt="">`;
+    }).catch(() => {});
+  });
+}
+
+/* ── 입력 중 제안 ────────────────────────────────────────
+   검색창을 누르면 아래 것들은 접히고, 친 말에 맞는 곳만 남는다. */
+function searchMode(on) {
+  els.sugShelf.classList.toggle('hidden', !on || !els.typeahead.children.length);
+  if (on) {
+    // 최근 검색은 남긴다 — 다시 찾는 곳이 대부분 그 안에 있다
+    for (const el of [els.nearShelf, $('sugList').parentElement, els.resultShelf])
+      el && el.classList.add('hidden');
+    renderRecents();
+    return;
+  }
+  // 검색을 그만두면 접어 뒀던 것들을 되돌린다
+  renderRecents();
+  if (els.nearList.children.length) els.nearShelf.classList.remove('hidden');
+  const sug = $('sugList').parentElement;
+  if (sug) sug.classList.remove('hidden');
+}
+
+let typeT = 0, typeSeq = 0;
+
+/* 제안 카드는 가볍게 그린다.
+   예전에는 카드마다 사진과 요약을 따로 받아와서 여섯 장이면 요청이 열두 번 나갔다.
+   위키데이터가 한 줄 설명을 함께 주므로 그것만으로 충분하다. */
+function fillSuggestions(list) {
+  els.typeahead.innerHTML = list.map(x => `
+    <button class="card" data-place="${x.name}">
+      <span class="thumb">${PIN_SM}</span>
+      <span class="meta"><b>${x.name}</b><em>${x.desc}</em></span>
+      <span class="go">${GO}</span>
+    </button>`).join('');
+  [...els.typeahead.children].forEach(btn => {
+    btn.onclick = () => {
+      const q = btn.dataset.place;
+      els.searchInput.value = q;
+      showClear();
+      rememberSearch(q);
+      runSearch(q);
+    };
+  });
+}
+
+async function typeahead(term) {
+  const seq = ++typeSeq;
+  const q = term.trim();
+  if (q.length < 2) { els.typeahead.innerHTML = ''; els.sugShelf.classList.add('hidden'); return; }
+  try {
+    /* 위키백과 검색은 이강인·신민아·경주 이씨까지 그대로 준다.
+       위키데이터는 설명문으로 사람과 장소를 갈라 주고, 요청도 한 번이면 된다. */
+    const list = await geo2.suggest(q, 6);
+    if (seq !== typeSeq) return;
+    if (!list.length) { els.typeahead.innerHTML = ''; els.sugShelf.classList.add('hidden'); return; }
+    els.sugShelf.classList.remove('hidden');
+    fillSuggestions(list);
+  } catch (_) {}
+}
+
+/* 지우기 버튼 — 글자가 있을 때만 보인다 */
+const showClear = () =>
+  els.searchClear.classList.toggle('hidden', !els.searchInput.value.length);
+
+els.searchClear.onclick = () => {
+  els.searchInput.value = '';
+  showClear();
+  /* 이미 날아간 제안 요청이 뒤늦게 돌아와 목록을 다시 채우는 일이 있다.
+     기다리는 것과 진행 중인 것을 모두 무효로 만든다. */
+  clearTimeout(typeT);
+  typeSeq++;
+  els.typeahead.innerHTML = '';
+  els.sugShelf.classList.add('hidden');
+  els.searchInput.focus();          // 지운 뒤 바로 다시 칠 수 있게
+};
+
+els.searchInput.addEventListener('focus', () => searchMode(true));
+els.searchInput.addEventListener('blur', () => {
+  // 잠깐 기다린다. 제안 카드를 누르는 중일 수 있다.
+  setTimeout(() => {
+    if (document.activeElement === els.searchInput) return;
+    if (!els.searchInput.value.trim()) searchMode(false);
+  }, 180);
+});
+els.searchInput.addEventListener('input', () => {
+  showClear();
+  searchMode(true);
+  clearTimeout(typeT);
+  typeT = setTimeout(() => typeahead(els.searchInput.value), 220);
+});
 
 els.searchForm.onsubmit = e => {
   e.preventDefault();
   const q = els.searchInput.value.trim();
   if (!q) return;
   els.searchInput.blur();
-  playPlace(q);
+  els.sugShelf.classList.add('hidden');
+  els.typeahead.innerHTML = '';
+  rememberSearch(q);
+  showClear();
+  runSearch(q);
 };
 
 /* ── 요약 / 전체 ──────────────────────────────────────────
@@ -1473,7 +2122,7 @@ els.viewerClose.onclick = closeViewer;
 
 /* ── 화면 전환 ────────────────────────────────────────────
    홈 · 검색 · 플레이어 · 히스토리 · 설정 */
-const VIEWS = ['home', 'search', 'player', 'history', 'settings'];
+const VIEWS = ['home', 'nearby', 'search', 'player', 'history', 'settings'];
 
 function goto(view) {
   state.view = view;
@@ -1483,18 +2132,32 @@ function goto(view) {
   els.mini.classList.toggle('hidden', view === 'player' || !P.lines.length);
   if (view === 'home') renderHome();
   if (view === 'search') renderSearch();
+  if (view === 'nearby') renderNearby();
   if (view === 'settings') renderQuota();
   if (view === 'player') closeScript();
 }
-document.querySelectorAll('.tab').forEach(b => b.onclick = () => goto(b.dataset.view));
+document.querySelectorAll('.tab').forEach(b => b.onclick = () => {
+  // 탭으로 들어온 검색에는 뒤로 갈 곳이 없다
+  if (b.dataset.view === 'search') { cameFrom = ''; els.searchBack.classList.add('hidden'); }
+  goto(b.dataset.view);
+});
 els.mini.onclick = e => { if (!e.target.closest('.ico')) goto('player'); };
 
 /* 해설 패널 — 플레이어 안에서 열고 닫는다 */
 function openScript() {
   els.scriptPanel.classList.remove('hidden');
   state.scriptOpen = true;
+  fillScriptHead();
+  paint();
   if (P.lines[P.idx]) P.lines[P.idx].el.scrollIntoView({ block: 'center' });
 }
+function fillScriptHead() {
+  const shot = state.shots[state.slide] || state.shots[0];
+  const url = shot?.url || state.image || '';
+  els.scThumb.innerHTML = url ? `<img src="${url}" alt="">` : PIN_SM;
+  els.scSub.textContent = els.addr.textContent || 'AI 도슨트';
+}
+
 function closeScript() {
   els.scriptPanel.classList.add('hidden');
   state.scriptOpen = false;
@@ -1503,6 +2166,27 @@ $('scriptClose').onclick = closeScript;
 
 els.peek.onclick = openScript;
 
+/* 해설 화면의 조작 — 플레이어와 같은 동작에 묶는다 */
+els.scPlay.onclick = togglePlay;
+$('scPrev').onclick = () => playFrom(P.idx - 1);
+$('scNext').onclick = () => playFrom(P.idx + 1);
+els.scTrack.onpointerdown = e => {
+  if (!P.lines.length) return;
+  els.scTrack.setPointerCapture(e.pointerId);
+  const at = ev => {
+    const r = els.scTrack.getBoundingClientRect();
+    return Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width));
+  };
+  const move = ev => { els.scFill.style.width = at(ev) * 100 + '%'; };
+  move(e);
+  els.scTrack.onpointermove = move;
+  els.scTrack.onpointerup = ev => {
+    els.scTrack.onpointermove = els.scTrack.onpointerup = null;
+    const t = at(ev) * total();
+    let i = P.lines.findIndex(l => t < l.start + l.dur);
+    playFrom(i < 0 ? P.lines.length - 1 : i);
+  };
+};
 
 /* ── 조작 ────────────────────────────────────────────────── */
 function togglePlay() {
@@ -1744,6 +2428,11 @@ els.gvoiceList.onclick = e => {
 };
 
 (async () => {
+  // 화면에서 뺀 엔진이 저장돼 있으면 되돌린다
+  if (prefs.engine === 'google' || prefs.engine === 'eleven') {
+    prefs.engine = tts.available('azure') ? 'azure' : 'device';
+    savePrefs();
+  }
   if (isNet(prefs.engine) && !tts.available(prefs.engine)) prefs.engine = 'device';
   applyEngine();
   await loadNetVoices();
@@ -1780,7 +2469,6 @@ els.voiceSel.onchange = () => {
   els.voiceNow.textContent = prefs.voice;
   savePrefs(); previewVoice();
 };
-
 
 /* ── API 키 ──────────────────────────────────────────────
    키는 이 기기의 localStorage 에만 있다. 코드에도 서버에도 없다. */

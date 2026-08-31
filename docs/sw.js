@@ -2,11 +2,11 @@
    껍데기(HTML·CSS·JS·아이콘)만 캐시한다.
    해설과 사진은 매번 새로 받아야 하므로 캐시하지 않는다. */
 
-const SHELL = 'docent-shell-v52';
+const SHELL = 'docent-shell-v97';
 const FILES = ['./', './index.html', './style.css', './app.js',
                './manifest.webmanifest',
                './lib/wiki.js', './lib/llm.js', './lib/tts.js',
-               './lib/photos.js', './lib/geo.js', './lib/keys.js', './lib/places.js',
+               './lib/photos.js', './lib/geo.js', './lib/keys.js', './lib/places.js', './lib/geoindex.js', './lib/score.js',
                './icons/icon-192.png',
                './icons/icon-512.png', './icons/maskable-512.png',
                './icons/apple-touch-152.png', './icons/apple-touch-167.png',
@@ -28,13 +28,21 @@ self.addEventListener('fetch', e => {
   // API 와 외부 사진은 항상 네트워크
   if (url.pathname.startsWith('/api/') || url.origin !== location.origin) return;
 
+  /* 예전에는 매번 네트워크를 먼저 기다렸다.
+     껍데기 파일 열한 개가 전부 왕복을 기다리니 켤 때마다 그만큼 늦었다.
+     이제 캐시에 있으면 곧바로 내주고, 새 것은 뒤에서 받아 다음 실행에 쓴다. */
   e.respondWith(
-    fetch(e.request)
-      .then(res => {
-        const copy = res.clone();
-        caches.open(SHELL).then(c => c.put(e.request, copy)).catch(() => {});
-        return res;
-      })
-      .catch(() => caches.match(e.request).then(r => r || caches.match('./index.html')))
+    caches.match(e.request).then(hit => {
+      const fresh = fetch(e.request)
+        .then(res => {
+          if (res && res.ok) {
+            const copy = res.clone();
+            caches.open(SHELL).then(c => c.put(e.request, copy)).catch(() => {});
+          }
+          return res;
+        })
+        .catch(() => hit || caches.match('./index.html'));
+      return hit || fresh;
+    })
   );
 });
