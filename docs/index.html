@@ -12,7 +12,8 @@
 <link rel="preconnect" href="https://ko.wikipedia.org">
 <link rel="preconnect" href="https://generativelanguage.googleapis.com">
 <link rel="preconnect" href="https://www.wikidata.org">
-<link rel="dns-prefetch" href="https://tiles.openfreemap.org">
+<link rel="preconnect" href="https://tiles.openfreemap.org" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="dns-prefetch" href="https://wikimedia.org">
 <link rel="dns-prefetch" href="https://koreacentral.tts.speech.microsoft.com">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
@@ -102,8 +103,9 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2.6v3M12 18.4v3M21.4 12h-3M5.6 12h-3"/></svg>
       </button>
       <button class="research hidden" id="research">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 12a8 8 0 0 1 13.7-5.6M20 12a8 8 0 0 1-13.7 5.6"/><path d="M17.4 3.2v3.4h-3.4M6.6 20.8v-3.4h3.4"/></svg>
-        현위치에서 검색
+        <svg class="ricon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 12a8 8 0 0 1 13.7-5.6M20 12a8 8 0 0 1-13.7 5.6"/><path d="M17.4 3.2v3.4h-3.4M6.6 20.8v-3.4h3.4"/></svg>
+        <svg class="rspin" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="8.6" stroke="currentColor" stroke-opacity=".3" stroke-width="2.4"/><path d="M20.6 12a8.6 8.6 0 0 0-8.6-8.6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+        <span id="researchLabel">현위치에서 검색</span>
       </button>
     </div>
 

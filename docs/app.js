@@ -1389,7 +1389,9 @@ async function renderNearby() {
     });
     mapObj.touchZoomRotate.disableRotation();
     mapObj.on('click', () => pickPin(null));
+    mapObj.on('move', () => { clearTimeout(layoutT); layoutT = setTimeout(layout, 90); });
     mapObj.on('moveend', () => {
+      layout();
       // 장소 카드가 떠 있을 때는 자리가 겹치므로 내놓지 않는다
       const show = mapMoved() && $('placeCard').classList.contains('hidden');
       $('research').classList.toggle('hidden', !show);
@@ -1416,45 +1418,105 @@ async function dropPins(at, { keepView = false } = {}) {
      이름만 보고 걸러 먼저 꽂고, 제대로 된 점수는 뒤에서 매겨 갈아 끼운다. */
   let names = raw.map(x => x.title)
     .filter(n => !geo2.adminName(n) && !geo2.boring(n) && !score.dropped(n, [], { unknown: true }))
-    .slice(0, 12);
+    .slice(0, 20);
   if (!names.length) return;
 
   // 사진도 한 번에 받는다. 한 곳씩 부르면 열두 곳에 스물네 번이 나간다.
   const shots = await wiki.thumbs(names, 160);
   paintPins(names, coords, shots, keepView);
-  refinePins(at, raw, coords, shots, keepView).catch(() => {});
+  /* 다듬기는 잠시 미룬다. 지도 타일이 먼저 내려와야 화면이 빨리 찬다. */
+  setTimeout(() => refinePins(at, raw, coords, shots, keepView).catch(() => {}), 1200);
 }
 
 function paintPins(names, coords, shots, keepView) {
-  pins.forEach(p => p.marker.remove());
-  pins = [];
+  pins.forEach(p => p.marker && p.marker.remove());
+  clusters.forEach(m => m.remove());
+  pins = []; clusters = [];
+
   let w = 180, s = 90, e = -180, n = -90;
   for (const name of names) {
     const c = coords[name];
     if (!c) continue;
-    const img = shots[name];
-    const el = document.createElement('div');
-    el.className = 'pin';
-    el.innerHTML = `<i>${img ? `<img src="${img}" alt="">` : PIN_SM}</i>`;
-    const marker = new maplibregl.Marker({ element: el, anchor: 'bottom' })
-      .setLngLat([c.lon, c.lat]).addTo(mapObj);
-    const rec = { name, marker, el, dist: c.dist, image: img };
-    el.addEventListener('click', ev => { ev.stopPropagation(); pickPin(rec); });
-    pins.push(rec);
+    pins.push({ name, lon: c.lon, lat: c.lat, dist: c.dist, image: shots[name], marker: null });
     w = Math.min(w, c.lon); e = Math.max(e, c.lon);
     s = Math.min(s, c.lat); n = Math.max(n, c.lat);
   }
-  if (pins.length > 1 && !keepView)
-    mapObj.fitBounds([[w, s], [e, n]], { padding: { top: 80, bottom: 170, left: 56, right: 56 },
-                                        maxZoom: 14.6, animate: false });
+  /* 화면 크기가 잡히기 전에 범위를 맞추면 배율이 엉뚱하게 멀어진다.
+     (지도가 0픽셀로 잡히면 세상 전체를 담으려 한다.)
+     크기를 다시 재고 한 프레임 기다린 뒤에 맞춘다. */
+  const fit = () => {
+    if (pins.length > 1 && !keepView) {
+      mapObj.resize();
+      mapObj.fitBounds([[w, s], [e, n]], {
+        padding: { top: 80, bottom: 170, left: 56, right: 56 },
+        maxZoom: 14.6, minZoom: 11, animate: false,
+      });
+    }
+    layout();
+  };
+  requestAnimationFrame(() => requestAnimationFrame(fit));
+}
+
+/* ── 겹치는 핀 묶기 ──────────────────────────────────────
+   지도를 줄이면 핀들이 서로 포개져 무엇이 무엇인지 알 수 없다.
+   화면에서 가까운 것들을 하나로 묶고 개수를 적어 준다. */
+const CLUSTER_PX = 58;
+let clusters = [], layoutT = 0;
+
+function makePin(rec) {
+  const el = document.createElement('div');
+  el.className = 'pin';
+  el.innerHTML = `<i>${rec.image ? `<img src="${rec.image}" alt="">` : PIN_SM}</i>`;
+  el.addEventListener('click', ev => { ev.stopPropagation(); pickPin(rec); });
+  if (pickedPin && pickedPin.name === rec.name) el.classList.add('picked');
+  return new maplibregl.Marker({ element: el, anchor: 'bottom' })
+    .setLngLat([rec.lon, rec.lat]).addTo(mapObj);
+}
+
+function makeCluster(group) {
+  const lon = group.reduce((a, p) => a + p.lon, 0) / group.length;
+  const lat = group.reduce((a, p) => a + p.lat, 0) / group.length;
+  const el = document.createElement('div');
+  el.className = 'pin cluster';
+  el.innerHTML = `<i><b>${group.length}</b></i>`;
+  el.addEventListener('click', ev => {
+    ev.stopPropagation();
+    // 누르면 그 무리가 풀릴 만큼 다가간다
+    mapObj.easeTo({ center: [lon, lat], zoom: Math.min(17, mapObj.getZoom() + 2.2), duration: 380 });
+  });
+  return new maplibregl.Marker({ element: el, anchor: 'bottom' })
+    .setLngLat([lon, lat]).addTo(mapObj);
+}
+
+function layout() {
+  if (!mapObj || !pins.length) return;
+  pins.forEach(p => { if (p.marker) { p.marker.remove(); p.marker = null; } });
+  clusters.forEach(m => m.remove());
+  clusters = [];
+
+  // 화면 좌표로 옮겨 놓고 가까운 것끼리 묶는다
+  const pts = pins.map(p => ({ p, xy: mapObj.project([p.lon, p.lat]) }));
+  const used = new Set();
+  for (let i = 0; i < pts.length; i++) {
+    if (used.has(i)) continue;
+    const group = [pts[i].p];
+    used.add(i);
+    for (let k = i + 1; k < pts.length; k++) {
+      if (used.has(k)) continue;
+      const dx = pts[i].xy.x - pts[k].xy.x, dy = pts[i].xy.y - pts[k].xy.y;
+      if (Math.hypot(dx, dy) < CLUSTER_PX) { group.push(pts[k].p); used.add(k); }
+    }
+    if (group.length === 1) group[0].marker = makePin(group[0]);
+    else clusters.push(makeCluster(group));
+  }
 }
 
 /* 뒤에서 제대로 점수를 매겨, 목록이 달라졌을 때만 다시 그린다 */
 async function refinePins(at, raw, coords, shots, keepView) {
-  const ranked = await score.rank(raw.slice(0, 40).map(x => ({ name: x.title, dist: x.dist })),
-                                  { pos: state.pos });
+  const ranked = await score.rank(raw.slice(0, 24).map(x => ({ name: x.title, dist: x.dist })),
+                                  { pos: state.pos, views: false });
   if (mapAt !== at || !ranked.length) return;
-  const names = ranked.map(x => x.name).filter(n => coords[n]).slice(0, 12);
+  const names = ranked.map(x => x.name).filter(n => coords[n]).slice(0, 20);
   const now = pins.map(p => p.name).join('|');
   if (!names.length || names.join('|') === now) return;
   const more = await wiki.thumbs(names.filter(n => !shots[n]), 160);
@@ -1463,7 +1525,7 @@ async function refinePins(at, raw, coords, shots, keepView) {
 }
 
 function pickPin(rec) {
-  if (pickedPin) pickedPin.el.classList.remove('picked');
+  if (pickedPin && pickedPin.marker) pickedPin.marker.getElement().classList.remove('picked');
   pickedPin = rec;
   if (!rec) {
     $('placeCard').classList.add('hidden');
@@ -1472,8 +1534,8 @@ function pickPin(rec) {
     return;
   }
 
-  rec.el.classList.add('picked');
-  mapObj.easeTo({ center: rec.marker.getLngLat(), duration: 320 });
+  if (rec.marker) rec.marker.getElement().classList.add('picked');
+  mapObj.easeTo({ center: [rec.lon, rec.lat], duration: 320 });
 
   $('pcName').textContent = rec.name;
   $('pcDesc').textContent = rec.summary
@@ -1495,15 +1557,25 @@ function pickPin(rec) {
 /* 지금 보고 있는 자리에서 다시 찾는다 */
 async function researchHere() {
   if (!mapObj) return;
+  const btn = $('research');
+  if (btn.classList.contains('busy')) return;      // 두 번 눌러도 한 번만
+
   const c = mapObj.getCenter();
   const at = { lat: c.lat, lon: c.lng };
-  const btn = $('research');
-  // 줄어들며 사라지고 나서 핀을 꽂는다
-  btn.classList.add('going');
-  setTimeout(() => { btn.classList.add('hidden'); btn.classList.remove('going'); }, 190);
+  /* 누르자마자 사라지면 눌린 건지 알 수 없다.
+     찾는 동안 그 자리에서 돌다가, 핀이 다 꽂히면 줄어들며 사라진다. */
+  btn.classList.add('busy');
+  $('researchLabel').textContent = '찾는 중';
   pickPin(null);
   mapAt = at;
-  await dropPins(at, { keepView: true });
+  try {
+    await dropPins(at, { keepView: true });
+  } finally {
+    btn.classList.remove('busy');
+    $('researchLabel').textContent = '현위치에서 검색';
+    btn.classList.add('going');
+    setTimeout(() => { btn.classList.add('hidden'); btn.classList.remove('going'); }, 190);
+  }
 }
 $('research').onclick = researchHere;
 
@@ -1528,8 +1600,7 @@ function openInMaps(name, lat, lon) {
 $('pcMap').onclick = e => {
   e.stopPropagation();
   if (!pickedPin) return;
-  const c = pickedPin.marker.getLngLat();
-  openInMaps(pickedPin.name, c.lat, c.lng);
+  openInMaps(pickedPin.name, pickedPin.lat, pickedPin.lon);
 };
 
 $('recenter').onclick = () => {
@@ -2558,6 +2629,19 @@ els.gvoiceList.onclick = e => {
 };
 
 setTimeout(() => warmNearby(state.pos || SEOUL), 1200);   // 켜고 잠시 뒤 조용히
+
+/* 지도 라이브러리(약 200KB)와 스타일을 한가할 때 미리 받아 둔다.
+   탭을 누른 뒤에 받기 시작하면 휴대폰에서는 몇 초씩 걸린다.
+   prefetch 라 다른 요청을 밀어내지 않고 남는 대역폭만 쓴다. */
+const idle = window.requestIdleCallback || (fn => setTimeout(fn, 2500));
+idle(() => {
+  for (const href of [MAP_JS, MAP_STYLE]) {
+    const l = document.createElement('link');
+    l.rel = 'prefetch'; l.href = href; l.as = href.endsWith('.js') ? 'script' : 'fetch';
+    l.crossOrigin = 'anonymous';
+    document.head.appendChild(l);
+  }
+}, { timeout: 4000 });
 
 (async () => {
   // 화면에서 뺀 엔진이 저장돼 있으면 되돌린다

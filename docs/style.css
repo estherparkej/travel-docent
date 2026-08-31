@@ -1024,6 +1024,11 @@ input[type=range]:disabled{opacity:.4}
 .pin.picked i{transform:translateX(-50%) scale(1.3)}
 .pin.picked{z-index:900}
 
+/* 묶인 핀 — 사진 대신 개수를 보여준다 */
+.pin.cluster i{background:var(--acc);color:#FFF;
+  display:grid;place-items:center;box-shadow:inset 0 0 0 2px #FFF}
+.pin.cluster i b{font-size:15px;font-weight:800;letter-spacing:-.03em;line-height:1}
+
 /* 고른 곳 카드 — 아래에서 올라온다 */
 .placecard{position:absolute;left:var(--gap);right:var(--gap);z-index:1050;
   bottom:calc(var(--navclear) + 6px);
@@ -1083,6 +1088,14 @@ input[type=range]:disabled{opacity:.4}
   transition:transform .18s var(--gentle),opacity .18s ease}
 .research svg{width:16px;height:16px}
 .research:active{transform:scale(.97)}
+/* 찾는 동안에는 스피너가 돈다. 눌렸다는 걸 알려야 한 번 더 누르지 않는다.
+   새로고침 화살표를 돌리면 '다시 불러온다'로 읽혀 헷갈리므로,
+   진짜 스피너(반쪽 고리)로 갈아 끼운다. */
+.research .rspin{display:none;width:16px;height:16px;flex:0 0 auto}
+.research.busy{pointer-events:none}
+.research.busy .ricon{display:none}
+.research.busy .rspin{display:block;animation:rspin .8s linear infinite}
+@keyframes rspin{to{transform:rotate(360deg)}}
 /* 누르고 나면 살짝 줄면서 사라진다. 그 자리에 핀이 새로 꽂힌다. */
 .research.going{transform:scale(.97);opacity:0;pointer-events:none}
 .research.hidden{display:none}
