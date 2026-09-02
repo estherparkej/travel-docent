@@ -37,7 +37,7 @@ export const SYSTEM = `당신은 여행지 현장에서 방문객 옆에 서서 
    "정면을 한번 보세요", "오른쪽 아래를 보시면".
 
 [구성]
-1. 첫 문장은 반드시 "지금 여러분이 서 계신 곳은 ○○입니다." 로 시작합니다.
+1. 첫 문장은 아래 [첫 문장] 에 적힌 그대로 시작합니다. 바꾸지 마세요.
 2. 바로 이어서 훅을 던집니다. 이곳이 왜 대단한지 한 방에.
 3. 이야기를 풀어갑니다. 자료에 사람 이야기나 전설이 있으면 그것을 중심으로.
    연도를 나열하지 말고, 장면을 그려주세요.
@@ -50,7 +50,7 @@ const LENGTHS = {
   deep: '1200자 내외. 곁가지 이야기와 사람 이야기까지 넉넉히.',
 };
 
-export function buildPrompt(data, length = 'normal', heard = [], again = false) {
+export function buildPrompt(data, length = 'normal', heard = [], again = false, here = true, tone = '') {
   const lines = [];
   if (data.sources.length) {
     lines.push('[위키백과 자료]');
@@ -64,6 +64,11 @@ export function buildPrompt(data, length = 'normal', heard = [], again = false) 
   if (data.nearby.length) lines.push(`\n[걸어서 갈 만한 주변] ${data.nearby.join(', ')}`);
   lines.push(`\n[해설 길이] ${LENGTHS[length] || LENGTHS.normal}`);
   lines.push(`[해설할 대상] ${data.place}`);
+  /* 지금 그 자리에 서 있는 사람과, 집에서 찾아 듣는 사람에게
+     같은 말로 시작하면 어색하다. 첫 문장을 갈라 준다. */
+  lines.push(here
+    ? `[첫 문장] "여러분, 지금 여러분이 서 계신 곳은 ${data.place}입니다."`
+    : `[첫 문장] "이곳은 ${data.place}입니다."`);
   const h = (heard || []).filter(Boolean);
   if (h.length) lines.push(`[이미 들은 곳] ${h.slice(-12).join(', ')}`);
   if (again) lines.push('[요청] 같은 자리입니다. 방금과 다른 대목을 골라 새로 이야기해 주세요.');
@@ -125,7 +130,7 @@ function boring(s) {
   return s.length < 6;
 }
 
-function* streamWiki(data, length) {
+function* streamWiki(data, length, here = true) {
   if (!data.sources.length) {
     yield '이 근처에서는 소개할 만한 자료를 찾지 못했어요. 조금 더 걸어가 보시겠어요?\n';
     return;
@@ -135,7 +140,9 @@ function* streamWiki(data, length) {
   body = soften(body);
   const cap = { short: 320, normal: 950, deep: 2000 }[length] ?? 950;
 
-  yield `여러분, 지금 여러분이 서 계신 곳은 ${src.title}입니다.\n`;
+  yield here
+    ? `여러분, 지금 여러분이 서 계신 곳은 ${src.title}입니다.\n`
+    : `이곳은 ${src.title}입니다.\n`;
   let used = 0;
   for (const sent of body.split(/(?<=[.!?])\s+/).map(x => x.trim()).filter(Boolean)) {
     if (boring(sent)) continue;
@@ -212,11 +219,11 @@ async function* geminiOnce(model, key, prompt) {
 }
 
 /* 공개 진입점 — 대본을 조각조각 흘려보낸다 */
-export async function* stream(data, { length = 'normal', heard = [], again = false } = {}) {
+export async function* stream(data, { length = 'normal', heard = [], again = false, here = true, tone = '' } = {}) {
   const key = getKey('gemini');
-  if (!key) { yield* streamWiki(data, length); return; }
+  if (!key) { yield* streamWiki(data, length, here); return; }
 
-  const prompt = buildPrompt(data, length, heard, again);
+  const prompt = buildPrompt(data, length, heard, again, here, tone);
   const list = await models(key);
   let started = false;
 
@@ -234,5 +241,5 @@ export async function* stream(data, { length = 'normal', heard = [], again = fal
     }
   }
   // 한 글자도 못 받았다. 빈손으로 두지 말고 위키백과라도 읽어준다.
-  yield* streamWiki(data, length);
+  yield* streamWiki(data, length, here);
 }

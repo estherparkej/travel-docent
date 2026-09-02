@@ -12,11 +12,25 @@ async function get(params) {
   return r.json();
 }
 
-export async function nearby(lat, lon, radius = 1500, limit = 10) {
+/* 같은 자리를 다시 물으면 그대로 돌려준다. 지도를 열 때 미리 받아 둘 수 있게 한다. */
+const nearCache = new Map();
+
+export function nearby(lat, lon, radius = 1500, limit = 10) {
+  const key = `${(+lat).toFixed(3)},${(+lon).toFixed(3)}|${radius}|${limit}`;
+  if (nearCache.has(key)) return nearCache.get(key);
+  const job = nearbyOnce(lat, lon, radius, limit);
+  nearCache.set(key, job);
+  job.catch(() => nearCache.delete(key));
+  return job;
+}
+
+async function nearbyOnce(lat, lon, radius, limit) {
   try {
     const d = await get({ action: 'query', list: 'geosearch',
       gscoord: `${lat}|${lon}`, gsradius: radius, gslimit: limit });
-    return (d.query?.geosearch || []).map(x => ({ title: x.title, dist: Math.round(x.dist) }));
+    // 지도에 꽂으려면 좌표가 필요하다. 지오서치가 이미 주고 있었다.
+    return (d.query?.geosearch || []).map(x =>
+      ({ title: x.title, dist: Math.round(x.dist), lat: x.lat, lon: x.lon }));
   } catch (_) { return []; }
 }
 
@@ -124,7 +138,8 @@ export async function gather({ lat, lon, manual }) {
 async function gatherOnce({ lat, lon, manual }) {
   const base = {
     action: 'query',
-    prop: 'extracts|pageimages',
+    // 좌표는 '지금 그 자리에 서 있는지' 가려내는 데 쓴다. 같은 요청이라 값이 들지 않는다.
+    prop: 'extracts|pageimages|coordinates',
     explaintext: '1', exintro: '1', exlimit: 'max',
     piprop: 'thumbnail', pithumbsize: 900,
   };
@@ -143,7 +158,7 @@ async function gatherOnce({ lat, lon, manual }) {
   pages.sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
 
   if (!pages.length)
-    return { place: manual || '', primary: '', image: '', sources: [], nearby: [] };
+    return { place: manual || '', primary: '', image: '', sources: [], nearby: [], coord: null };
 
   const primary = pages[0];
   const sources = [];
@@ -157,12 +172,43 @@ async function gatherOnce({ lat, lon, manual }) {
     });
   });
 
+  const c = primary.coordinates?.[0];
   return {
     place: primary.title,
     primary: primary.title,
     image: primary.thumbnail?.source || '',
     sources,
     nearby: pages.slice(1, 6).map(x => x.title),
+    coord: c ? { lat: c.lat, lon: c.lon } : null,
   };
 }
 
+
+
+/* 여러 곳의 대표 사진을 한 번에 받아 온다.
+   한 곳씩 부르면 열두 곳에 스물네 번의 요청이 나간다. 한 번이면 된다. */
+const thumbCache = new Map();
+
+export async function thumbs(titles, size = 160) {
+  const out = {};
+  const need = titles.filter(t => {
+    if (thumbCache.has(t)) { out[t] = thumbCache.get(t); return false; }
+    return true;
+  });
+  titles = need;
+  for (let i = 0; i < titles.length; i += 50) {
+    try {
+      const d = await get({
+        action: 'query', prop: 'pageimages', piprop: 'thumbnail',
+        pithumbsize: size, pilimit: 'max',
+        titles: titles.slice(i, i + 50).join('|'),
+      });
+      for (const p of (d.query?.pages || [])) {
+        const u = p.thumbnail?.source || '';
+        thumbCache.set(p.title, u);
+        if (u) out[p.title] = u;
+      }
+    } catch (_) {}
+  }
+  return out;
+}
