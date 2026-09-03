@@ -126,6 +126,109 @@
     </div>
   </section>
 
+  <!-- ══════════ 장소 상세 ══════════ -->
+  <section class="view scroller hidden" id="view-place">
+    <!-- 스크롤해도 늘 같은 자리. 사진 위에선 투명하고, 글 위로 오면 흰 바탕이 깔린다. -->
+    <header class="pl-bar" id="plBar">
+      <button class="pl-icon" id="plBack" aria-label="뒤로">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 5 8 12l7 7"/></svg>
+      </button>
+      <b class="pl-bartitle" id="plBarTitle"></b>
+      <div class="pl-acts">
+        <button class="pl-icon" id="plLike" aria-label="저장">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M12 20s-7.2-4.6-7.2-9.4A4.3 4.3 0 0 1 12 8a4.3 4.3 0 0 1 7.2 2.6C19.2 15.4 12 20 12 20Z"/></svg>
+        </button>
+        <button class="pl-icon" id="plShare" aria-label="공유">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V4M8.5 7.2 12 3.7l3.5 3.5"/><path d="M5.5 12.5v6a1.5 1.5 0 0 0 1.5 1.5h10a1.5 1.5 0 0 0 1.5-1.5v-6"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <div class="pl-hero" id="plHero">
+      <img id="plImg" alt="">
+      <span class="pl-fade"></span>
+    </div>
+
+    <div class="pl-body">
+      <div class="pl-head">
+        <span class="pl-kind" id="plKind"></span>
+        <h1 id="plName">—</h1>
+        <div class="pl-where">
+          <span class="pl-loc">
+          <svg class="pl-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 21s7-5.4 7-11a7 7 0 1 0-14 0c0 5.6 7 11 7 11Z"/><circle cx="12" cy="10" r="2.4"/></svg>
+          <span id="plAddr"></span>
+          <span class="pl-dot" id="plDistWrap" hidden><b id="plDist"></b></span>
+          </span>
+          <button class="pl-route" id="plRoute">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M9 4.2 3.6 6.4v13.4L9 17.6l6 2.2 5.4-2.2V4.2L15 6.4 9 4.2Z"/><path d="M9 4.2v13.4M15 6.4v13.4"/></svg>
+            길안내
+          </button>
+        </div>
+      </div>
+
+      <section class="pl-sec">
+        <div class="pl-sum">
+          <span class="ai-badge">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.6l1.7 4.6 4.6 1.7-4.6 1.7L12 15.2l-1.7-4.6L5.7 8.9l4.6-1.7L12 2.6Z"/><path d="M18.4 14.2l.9 2.4 2.4.9-2.4.9-.9 2.4-.9-2.4-2.4-.9 2.4-.9.9-2.4Z"/></svg>
+            AI 요약
+          </span>
+          <p id="plSummary">요약하고 있어요</p>
+        </div>
+      </section>
+
+      <button class="pl-cta" id="plCta">도슨트와 함께 둘러보기</button>
+
+      <section class="pl-sec">
+        <h2>목소리</h2>
+        <div class="voicerow" id="plVoices"></div>
+      </section>
+
+      <section class="pl-sec">
+        <h2>이야기</h2>
+        <p class="pl-story" id="plStory">이야기를 쓰고 있어요</p>
+      </section>
+
+      <section class="pl-sec hidden" id="plGeoSec">
+        <h2>기본 정보</h2>
+        <div class="pl-facts" id="plFacts"></div>
+      </section>
+
+      <section class="pl-sec hidden" id="plTrendSec">
+        <h2>언제 인기 있나요</h2>
+        <p class="pl-note" id="plTrendNote"></p>
+        <div class="pl-chart" id="plTrend"></div>
+      </section>
+
+      <section class="pl-sec hidden" id="plNearSec">
+        <h2>주변 도슨트</h2>
+        <div class="cards" id="plNear"></div>
+      </section>
+
+      <section class="pl-sec">
+        <h2>다녀온 사람들</h2>
+        <p class="pl-note">블로그와 SNS 후기를 모아 보여드려요</p>
+        <div class="pl-links" id="plPosts"></div>
+      </section>
+    </div>
+
+    <div class="pl-dock" id="plDock">
+      <button class="pl-cta" id="plCta2">도슨트와 함께 둘러보기</button>
+    </div>
+  </section>
+
+  <!-- ══════════ 길안내 앱 고르기 ══════════ -->
+  <div id="routeSheet" class="sheet nomodal hidden">
+    <div class="sheet-inner" id="routeInner">
+      <div class="sheet-head" id="routeHead">
+        <div class="grab"></div>
+        <div class="sheet-title"><strong>길안내</strong></div>
+      </div>
+      <div class="sheet-body">
+        <div class="approw" id="routeApps"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- ══════════ 검색 ══════════ -->
   <section class="view scroller hidden" id="view-search">
     <header class="pagehead withback">
@@ -140,7 +243,7 @@
       <button type="button" class="clearbtn hidden" id="searchClear" aria-label="입력 지우기">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m7.5 7.5 9 9M16.5 7.5l-9 9"/></svg>
       </button>
-      <button type="submit" class="ico" id="searchGo" aria-label="이 장소 안내받기">
+      <button type="submit" class="ico" id="searchGo" aria-label="검색">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="11" cy="11" r="6.4"/><path d="m15.8 15.8 4.2 4.2"/></svg>
       </button>
     </form>
@@ -161,15 +264,15 @@
       <div class="cards" id="resultList"></div>
       <p class="empty hidden" id="resultEmpty"></p>
       <section class="shelf hidden" id="aroundShelf">
-        <h2>주변 추천<span class="count" id="aroundCount"></span></h2>
+        <h2>이 근처<span class="count" id="aroundCount"></span></h2>
         <div class="cards" id="aroundList"></div>
       </section>
       <div class="drill hidden" id="drillDown">
-        <span class="drill-label">어디부터 볼까요</span>
+        <span class="drill-label">좁혀 보기</span>
         <div class="rowscroll" id="downChips"></div>
       </div>
       <div class="drill hidden" id="drillUp">
-        <span class="drill-label">넓혀서 둘러보기</span>
+        <span class="drill-label">넓혀 보기</span>
         <div class="rowscroll" id="upChips"></div>
       </div>
     </section>
@@ -213,8 +316,8 @@
         </div>
 
         <div class="peek">
-          <span class="peek-line" id="peekLine">재생을 누르면 이 자리의 이야기가 시작돼요</span>
-          <button class="ico peek-more" id="peek" aria-label="해설 전체 보기">
+          <span class="peek-line" id="peekLine">재생을 누르면 이야기가 시작돼요</span>
+          <button class="ico peek-more" id="peek" aria-label="해설 전체">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m8.5 14.5 3.5-3.5 3.5 3.5"/></svg>
           </button>
         </div>
@@ -227,7 +330,7 @@
         </div>
 
         <div class="controls">
-          <button id="againBtn" class="ctl" aria-label="다른 이야기로">
+          <button id="againBtn" class="ctl" aria-label="다른 이야기">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M3.5 7h3c1.7 0 2.9 1.1 4 2.6l3 4.2c1.1 1.5 2.3 2.2 4 2.2h2M3.5 17h3c1.2 0 2.2-.5 3-1.4M17.5 15l3 1.8-3 1.8M14.5 8.6c.8-1 1.8-1.6 3-1.6h3M17.5 5.2l3 1.8-3 1.8"/></svg>
           </button>
           <button id="prevBtn" class="ctl step" aria-label="이전 문장">
@@ -242,7 +345,7 @@
           <button id="nextBtn" class="ctl step" aria-label="다음 문장">
             <svg viewBox="0 0 24 24" fill="currentColor"><rect x="15.8" y="6" width="2.6" height="12" rx="1.3"/><path d="M5.1 6.6c-.7-.42-1.6.06-1.6.86v9.08c0 .8.9 1.28 1.6.86l7.4-4.54a1 1 0 0 0 0-1.72L5.1 6.6Z"/></svg>
           </button>
-          <button id="autoBtn" class="ctl" aria-pressed="false" aria-label="걸으면 자동 안내">
+          <button id="autoBtn" class="ctl" aria-pressed="false" aria-label="자동 안내">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="12" cy="4.6" r="1.9" fill="currentColor" stroke="none"/><path d="M12 20.6l-1.9-4.6.9-3.4-2.3 1.7-.8 2.4M12 12.6l2.1 2.3.9 3.9M9.6 8.4l2.7.8 2 2 1.9.6"/></svg>
           </button>
         </div>
@@ -293,11 +396,11 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="8.6"/><path d="M12 7.4V12l3.2 1.9"/></svg>
       </span>
       <h2>아직 들은 곳이 없어요</h2>
-      <p>가고 싶은 곳을 검색하면<br>그 자리의 이야기를 들려드려요</p>
-      <button class="primary-btn" id="goSearch">장소 검색하기</button>
+      <p>장소를 검색하면<br>그곳의 이야기를 들려드려요</p>
+      <button class="primary-btn" id="goSearch">장소 검색</button>
     </div>
 
-    <button id="clearLog" class="textlink hidden">기록 삭제하기</button>
+    <button id="clearLog" class="textlink hidden">기록 지우기</button>
   </section>
 
   <!-- ══════════ 설정 ══════════ -->
@@ -310,7 +413,7 @@
     </header>
 
       <div class="field">
-        <span class="flabel">보이스 종류</span>
+        <span class="flabel">목소리 종류</span>
         <div class="seg" id="engineSeg">
           <button data-v="device" class="on">기본</button>
           <button data-v="azure">Azure</button>
@@ -325,7 +428,7 @@
 
       <div class="field" id="deviceField">
         <button class="acc-head" id="voiceAccHead" aria-expanded="false">
-          <span class="flabel">보이스 선택</span>
+          <span class="flabel">목소리</span>
           <span class="acc-right">
             <b id="voiceNow">유나</b>
             <span class="ico" aria-hidden="true">
@@ -340,7 +443,7 @@
             미리 듣기
           </button>
           <p class="hint hidden" id="voiceHint">
-            더 사람 목소리에 가깝게 하려면 <b>프리미엄 한국어 보이스</b>을 한 번만 내려받으세요.<br>
+            더 자연스러운 목소리는 한 번만 내려받으면 됩니다.<br>
             <em>맥</em> 시스템 설정 → 손쉬운 사용 → 음성 콘텐츠 → 시스템 음성 → 음성 관리 → 한국어 → <b>유나(프리미엄)</b><br>
             <em>아이폰</em> 설정 → 손쉬운 사용 → 말하기 콘텐츠 → 음성 → 한국어 → <b>유나(프리미엄)</b>
           </p>
@@ -348,7 +451,7 @@
       </div>
 
       <div class="field hidden" id="googleField">
-        <span class="flabel" id="netVoiceLabel">구글 보이스</span>
+        <span class="flabel" id="netVoiceLabel">구글 목소리</span>
         <div class="voices" id="gvoiceList"></div>
       </div>
 
@@ -363,11 +466,11 @@
       </div>
 
       <div class="field">
-        <span class="flabel">해설 깊이</span>
+        <span class="flabel">해설 길이</span>
         <div class="seg" id="lengthSeg">
           <button data-v="short">짧게</button>
           <button data-v="normal" class="on">보통</button>
-          <button data-v="deep">깊이</button>
+          <button data-v="deep">길게</button>
         </div>
       </div>
 
@@ -394,6 +497,7 @@
 
 <!-- ══════════ 플로팅 캡슐 내비 ══════════ -->
 <nav class="tabbar">
+  <span class="tabink" id="tabInk" aria-hidden="true"></span>
   <button class="tab" data-view="home">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 10.6 12 4l8 6.6V19a1.4 1.4 0 0 1-1.4 1.4h-3.2v-5.2H8.6v5.2H5.4A1.4 1.4 0 0 1 4 19v-8.4Z"/></svg>
     <span>홈</span>
@@ -452,10 +556,10 @@
       </div>
       <div class="field">
         <label class="flabel" for="pexelsKey">Pexels 키</label>
-        <input type="password" id="pexelsKey" class="bigfield" placeholder="비워두면 위키 사진만" autocomplete="off">
+        <input type="password" id="pexelsKey" class="bigfield" placeholder="없으면 위키 사진만 씁니다" autocomplete="off">
       </div>
       <div class="keybox">
-        <p class="keybox-note">키는 <b>이 기기에만</b> 저장되고 어디로도 전송되지 않아요.</p>
+        <p class="keybox-note">키는 <b>이 기기에만</b> 저장돼요. 어디로도 보내지 않습니다.</p>
         <div class="keylinks">
         <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">
           <span>Google AI Studio<em>Gemini 무료 키 받기</em></span>

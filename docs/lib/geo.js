@@ -10,7 +10,17 @@ export async function reverse(lat, lon) {
   const a = d.address || {};
   const place = d.name || a.tourism || a.historic || a.building || a.attraction
     || a.amenity || a.neighbourhood || a.suburb || a.village || a.town || a.city || '';
-  // 전체 주소는 너무 길다. 앞쪽 세 마디만.
-  const short = (d.display_name || '').split(',').slice(0, 3).join(',').trim();
-  return { place, address: short };
+  /* display_name 은 작은 단위부터 온다 — '공산성, 280, 웅진로, …'.
+     우리말 주소는 큰 단위부터 읽으므로 필요한 마디만 골라 다시 세운다. */
+  /* 도로명 주소가 있으면 '시도 시군구 도로명 건물번호'로 끝난다.
+     여기에 법정동까지 끼워 넣으면 두 체계가 섞여 어색해진다. */
+  const big = [a.province || a.state, a.city || a.county || a.town,
+               a.borough || a.city_district].filter(Boolean);
+  const parts = a.road
+    ? [...big, a.road, a.house_number]
+    : [...big, a.suburb || a.village || a.quarter];
+  // 같은 말이 두 번 나오면 한 번만
+  const seen = new Set();
+  const address = parts.filter(Boolean).filter(p => !seen.has(p) && seen.add(p)).join(' ');
+  return { place, address: address || d.display_name || '' };
 }

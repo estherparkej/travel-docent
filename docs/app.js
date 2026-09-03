@@ -1,6 +1,7 @@
 import * as wiki from './lib/wiki.js';
 import * as geo2 from './lib/geoindex.js';
 import * as score from './lib/score.js';
+import * as place from './lib/place.js';
 
 import * as llm from './lib/llm.js';
 import * as tts from './lib/tts.js';
@@ -136,8 +137,8 @@ function renderQuota() {
   }
   els.quotaNote.classList.remove('hidden');
   els.quotaTxt.innerHTML =
-    `<b>구글 무료 한도에 걸렸어요.</b> 분당 요청 수 제한이라 ` +
-    `<b>${left}초</b>쯤 뒤에 다시 됩니다. 그동안은 기기 목소리로 읽어드려요.`;
+    `<b>구글 무료 한도에 걸렸어요.</b> 분당 횟수 제한이라 ` +
+    `<b>${left}초</b> 뒤에 다시 됩니다. 그동안은 기기 목소리로 읽어드려요.`;
 }
 setInterval(() => { if (state.quotaAt) renderQuota(); }, 1000);
 
@@ -463,7 +464,7 @@ async function playChunk(ci, startLine) {
   let got;
   const tick = setInterval(() => {
     if (seq === P.seq && P.waiting)
-      els.status.textContent = ci ? '다음 대목을 준비하는 중' : '목소리를 만드는 중';
+      els.status.textContent = ci ? '다음 이야기 준비 중' : '목소리 준비 중';
   }, 1000);
   try {
     // 30초를 넘기면 기다리게 두지 않고 기기 목소리로 넘긴다
@@ -518,7 +519,7 @@ async function playChunk(ci, startLine) {
   highlight();
   a.play().catch(() => {
     if (seq !== P.seq) return;
-    notify('소리를 열지 못했어요. 재생 버튼을 한 번 더 눌러 주세요.');
+    notify('소리가 열리지 않았어요. 재생을 한 번 더 눌러 주세요.');
     P.speaking = false; P.playing = false; paint();
   });
   paint();
@@ -528,10 +529,10 @@ async function playChunk(ci, startLine) {
 function googleFailed(msg, fromLine) {
   if (msg === 'QUOTA') markQuota();
   notify(msg === 'QUOTA'
-    ? '구글 목소리 분당 한도에 걸렸어요. 기기 목소리로 이어 읽을게요.'
+    ? '구글 한도에 걸렸어요. 기기 목소리로 이어 읽을게요.'
     : msg === 'SLOW'
-      ? '구글 목소리가 너무 오래 걸려서 기기 목소리로 이어 읽을게요.'
-      : '구글 목소리를 불러오지 못했어요. 기기 목소리로 이어 읽을게요.');
+      ? '구글 목소리가 너무 늦어요. 기기 목소리로 이어 읽을게요.'
+      : '구글 목소리를 못 불렀어요. 기기 목소리로 이어 읽을게요.');
   // 설정 자체는 건드리지 않는다. 이번 해설에만 기기 목소리로 대신한다.
   state.fallback = true;
   killAudio();
@@ -718,11 +719,11 @@ function paint() {
   els.next.disabled = P.idx < 0 || P.idx >= P.lines.length - 1;
   els.again.disabled = state.streaming;
 
-  if (P.waiting) els.status.textContent = P.ci ? '다음 대목을 준비하는 중' : '목소리를 만드는 중';
-  else if (busy) els.status.textContent = '이야기를 쓰는 중';
-  else if (on) els.status.textContent = '지금 재생 중';
+  if (P.waiting) els.status.textContent = P.ci ? '다음 이야기 준비 중' : '목소리 준비 중';
+  else if (busy) els.status.textContent = '이야기 쓰는 중';
+  else if (on) els.status.textContent = '재생 중';
   else if (P.paused) els.status.textContent = '일시정지';
-  else if (P.lines.length) els.status.textContent = P.ended ? '해설이 끝났어요' : '지금 이 자리';
+  else if (P.lines.length) els.status.textContent = P.ended ? '다 들었어요' : '들을 준비 완료';
 }
 
 function highlight() {
@@ -798,7 +799,7 @@ async function narrate({ again = false } = {}) {
   if (state.streaming) return;
   const manual = (state.manual || '').trim();
   if (!manual && !state.pos) {
-    notify('어디를 들려드릴지 먼저 골라 주세요.');
+    notify('먼저 장소를 골라 주세요.');
     goto('search');
     return;
   }
@@ -810,7 +811,7 @@ async function narrate({ again = false } = {}) {
   state.fallback = false;   // 이번엔 다시 구글 목소리로 시도한다
   P.lines = []; P.idx = -1; P.chunks = []; P.ci = 0; P.pendingNext = null;
   els.transcript.innerHTML = '';
-  els.peekLine.textContent = '이 자리의 이야기를 쓰고 있어요…';
+  els.peekLine.textContent = '이야기를 쓰고 있어요…';
   els.addr.textContent = '';
   P.playing = true;                 // 첫 문장이 도착하면 바로 읽기 시작
   paint();
@@ -828,8 +829,8 @@ async function narrate({ again = false } = {}) {
     const data = await wiki.gather({ lat: body.lat, lon: body.lon, manual });
 
     if (!data.sources.length) {
-      showError('이 근처에서 위키백과 문서를 찾지 못했어요. '
-              + '검색에서 장소를 직접 적거나, 조금 이동한 뒤 다시 눌러보세요.');
+      showError('이 근처에서는 자료를 찾지 못했어요. '
+              + '장소 이름으로 검색하거나, 조금 이동한 뒤 다시 눌러 보세요.');
       return;
     }
 
@@ -858,7 +859,7 @@ async function narrate({ again = false } = {}) {
     if (buf.trim()) addLine(buf.trim());
     if (got) remember(state.resolved || state.place || manual);
   } catch (e) {
-    showError('해설을 불러오지 못했어요. 인터넷 연결을 확인하고 다시 눌러 주세요.');
+    showError('해설을 못 불렀어요. 연결을 확인하고 다시 눌러 주세요.');
     console.error(e);
   } finally {
     state.streaming = false;
@@ -1020,12 +1021,12 @@ async function refreshPlace() {
     state.geocodedAt = { lat, lon };
     // 해설 대상이 이미 정해졌으면 GPS 지명이 제목을 덮지 않는다
     if (!state.resolved && !P.lines.length && !state.streaming) {
-      els.name.textContent = state.place || '이름 없는 자리';
+      els.name.textContent = state.place || '이름 없는 곳';
       els.addr.textContent = state.address;
       els.status.textContent = '지금 계신 곳';
     }
   } catch (_) {
-    els.status.textContent = '지명을 불러오지 못했어요';
+    els.status.textContent = '위치 이름을 못 찾았어요';
   } finally {
     geocoding = false;
   }
@@ -1043,22 +1044,22 @@ function onPosition(p) {
 
 function onPositionError(err) {
   els.status.textContent = {
-    1: '위치 권한이 꺼져 있어요', 2: '위치를 확인할 수 없어요', 3: '위치 확인이 오래 걸려요',
+    1: '위치 권한이 꺼져 있어요', 2: '위치를 못 찾았어요', 3: '위치 찾기가 오래 걸려요',
   }[err.code] || '위치 오류';
   els.name.textContent = '어디를 들어볼까요';
-  els.addr.textContent = '검색 탭에서 장소를 찾아보세요';
+  els.addr.textContent = '장소를 검색해 보세요';
 }
 
 if (!window.isSecureContext) {
-  els.status.textContent = 'HTTPS가 아니어서 GPS를 쓸 수 없어요';
+  els.status.textContent = 'HTTPS가 아니면 위치를 쓸 수 없어요';
   els.name.textContent = '어디를 들어볼까요';
-  els.addr.textContent = '검색 탭에서 장소를 찾아보세요';
+  els.addr.textContent = '장소를 검색해 보세요';
 } else if (navigator.geolocation) {
   navigator.geolocation.watchPosition(onPosition, onPositionError, {
     enableHighAccuracy: true, maximumAge: 5000, timeout: 20000,
   });
 } else {
-  els.status.textContent = '이 브라우저는 위치를 지원하지 않아요';
+  els.status.textContent = '이 브라우저는 위치를 못 씁니다';
 }
 
 /* ── 홈 · 검색 ────────────────────────────────────────────
@@ -1072,6 +1073,21 @@ const PICKS = [
 const MONTH = new Date().getMonth() + 1;
 const previewCache = new Map();
 
+/* 카드 한 줄 소개 — 제목 아래에 다시 제목을 쓰지 않는다.
+   '불국사는 대한민국 경상북도 …' 대신 '경상북도 경주시에 있는 호국사찰이에요'. */
+function blurb(title, text, max = 40) {
+  let t = llm.soften(wiki.forSpeech(text || '')).replace(/\s+/g, ' ').trim();
+  if (!t) return '';
+  const esc0 = title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  t = t.replace(new RegExp('^' + esc0 + '\\s*(?:은|는|이|가)\\s*'), '');
+  t = t.split(/(?<=[.!?])\s/)[0];
+  /* '종로구 사직로에 있는'까지 적으면 한 줄에 안 들어간다 — 큰 단위까지만 */
+  t = t.replace(/([가-힣]+(?:시|도|구|군))\s+[가-힣0-9]+(?:로|길|동|가|리)\s*\d*(?:번지)?에\s*있는/, '$1에 있는');
+  if (t.length <= max) return t;
+  const cut = t.lastIndexOf(' ', max);
+  return (cut > 20 ? t.slice(0, cut) : t.slice(0, max)) + '…';
+}
+
 function preview(place) {
   if (previewCache.has(place)) return previewCache.get(place);
   const job = (async () => {
@@ -1082,8 +1098,7 @@ function preview(place) {
         wiki.pageImage(title, 900),
         wiki.extracts([title], true, 160),
       ]);
-      return { place: title, image,
-               summary: wiki.forSpeech(ex[title] || '').slice(0, 110) };
+      return { place: title, image, summary: blurb(title, ex[title] || '') };
     } catch (_) { return { place, image: '', summary: '' }; }
   })();
   previewCache.set(place, job);
@@ -1096,7 +1111,7 @@ const GO = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 5.6c0-.72.7
 function cardHTML(place, sub) {
   return `<button class="card" data-place="${place}">
     <span class="thumb">${PIN_SM}</span>
-    <span class="meta"><b>${place}</b><em>${sub || '해설을 준비할 수 있어요'}</em></span>
+    <span class="meta"><b>${place}</b><em>${sub || '들려드릴 수 있어요'}</em></span>
     <span class="go">${GO}</span></button>`;
 }
 
@@ -1134,7 +1149,14 @@ function warmPlace(name) {
   if (name) wiki.gather({ manual: name }).catch(() => {});
 }
 
+/* 예전에는 누르는 즉시 재생이 시작됐다.
+   무엇을 듣게 되는지 모르고 소리부터 나오는 건 불친절하다.
+   이제 한 장을 사이에 두고, 듣기로 마음먹은 사람만 재생으로 간다. */
 function playPlace(name) {
+  openPlace(name);
+}
+
+function startNarration(name) {
   warmPlace(name);
   state.manual = name;
   els.name.textContent = name;
@@ -1434,7 +1456,7 @@ function trimStyle(style) {
 
 async function renderNearby() {
   try { await loadMapLib(); } catch (_) {
-    notify('지도를 불러오지 못했어요. 인터넷 연결을 확인해 주세요.');
+    notify('지도를 못 불렀어요. 연결을 확인해 주세요.');
     return;
   }
   const at = state.pos || SEOUL;
@@ -1601,7 +1623,7 @@ function pickPin(rec) {
 
   $('pcName').textContent = rec.name;
   $('pcDesc').textContent = rec.summary
-    || (rec.dist != null ? `여기서 약 ${rec.dist}m` : '해설을 준비할 수 있어요');
+    || (rec.dist != null ? `여기서 ${rec.dist}m` : '들려드릴 수 있어요');
   $('pcThumb').innerHTML = rec.image ? `<img src="${rec.image}" alt="">` : PIN_SM;
   $('placeCard').classList.remove('hidden');
   els.mini.classList.add('above-card');     // 카드에 가리지 않게 위로
@@ -1808,7 +1830,7 @@ function renderSearch() {
       if (!near.length) return;
       els.nearShelf.classList.remove('hidden');
       fillCards(els.nearList, near.map(x => x.name),
-                near.map(x => `여기서 약 ${dist[x.name] ?? '?'}m`));
+                near.map(x => `여기서 ${dist[x.name] ?? '?'}m`));
     }).catch(() => {});
   }
 }
@@ -1847,7 +1869,7 @@ async function runSearch(q) {
   if (!hit) {
     // 위키데이터가 모르는 말이어도 위키백과에는 있을 수 있다
     els.resultTitle.textContent = `'${q}'`;
-    els.resultHero.innerHTML = heroHTML(q, '이 이름으로 해설을 만들어 볼게요');
+    els.resultHero.innerHTML = heroHTML(q, '이 이름으로 들려드릴게요');
     bindPlaces(els.resultHero);
     return;
   }
@@ -1860,11 +1882,11 @@ async function runSearch(q) {
     els.resultHero.innerHTML = heroHTML(hit.label, hit.desc || '바로 들어보세요');
     bindPlaces(els.resultHero);
     drawDrills(hit, seq);
-    nearbyOf(hit, seq, 6, '이 근처도 함께');
+    nearbyOf(hit, seq, 6, '이 근처');
     return;
   }
 
-  els.resultEmpty.textContent = '이 지역의 장소를 찾는 중이에요.';
+  els.resultEmpty.textContent = '이 지역을 찾아보는 중이에요.';
   els.resultEmpty.classList.remove('hidden');
   drawDrills(hit, seq);
 
@@ -1893,7 +1915,7 @@ async function runSearch(q) {
   names = names.filter(n => n && n !== hit.label && !geo2.boring(n));
   els.resultEmpty.classList.add('hidden');
   if (!names.length) {
-    els.resultEmpty.textContent = '이 지역에서 들려드릴 곳을 아직 찾지 못했어요. 장소 이름으로 검색해 보세요.';
+    els.resultEmpty.textContent = '들려드릴 곳을 찾지 못했어요. 장소 이름으로 검색해 보세요.';
     els.resultEmpty.classList.remove('hidden');
     return;
   }
@@ -2398,19 +2420,76 @@ els.viewerClose.onclick = closeViewer;
 
 /* ── 화면 전환 ────────────────────────────────────────────
    홈 · 검색 · 플레이어 · 히스토리 · 설정 */
-const VIEWS = ['home', 'nearby', 'search', 'player', 'history', 'settings'];
+const VIEWS = ['home', 'nearby', 'place', 'search', 'player', 'history', 'settings'];
+
+/* 활성 알약을 그 탭 자리로 미끄러뜨린다.
+   탭마다 배경을 켜고 끄면 깜빡이지만, 하나가 옮겨 다니면 이어져 보인다. */
+/* 세그먼트 컨트롤 — 켜진 칸을 흰 판이 따라간다.
+   각 그룹의 클릭 처리를 건드리지 않고, 'on' 이 옮겨 붙는 것만 지켜본다. */
+(() => {
+  /* classList.add 는 이미 있는 값이어도 class 속성을 다시 쓴다.
+     그 쓰기가 아래 관찰자를 또 깨우므로, 바뀔 때만 건드린다. */
+  const ready = (ink, on) => {
+    if (ink.classList.contains('ready') !== on) ink.classList.toggle('ready', on);
+  };
+  const place = (seg) => {
+    const ink = seg.querySelector('.seg-ink');
+    const on = seg.querySelector('button.on');
+    if (!ink) return;
+    if (!on || !seg.offsetParent) { ready(ink, false); return; }
+    ink.style.width = on.offsetWidth + 'px';
+    ink.style.transform = `translate3d(${on.offsetLeft}px,0,0)`;
+    requestAnimationFrame(() => ready(ink, true));
+  };
+  const segs = [...document.querySelectorAll('.seg')];
+  segs.forEach(seg => {
+    const ink = document.createElement('span');
+    ink.className = 'seg-ink';
+    seg.prepend(ink);
+    // 처음 자리는 소리 없이 잡는다
+    ink.style.transition = 'none';
+    requestAnimationFrame(() => { place(seg); requestAnimationFrame(() => { ink.style.transition = ''; }); });
+    new MutationObserver(ms => {
+      // 판 자신의 변화는 되돌아온 메아리다
+      if (ms.every(m => m.target === ink)) return;
+      place(seg);
+    }).observe(seg, { attributes: true, attributeFilter: ['class'], subtree: true });
+  });
+  const all = () => segs.forEach(place);
+  addEventListener('resize', all);
+  window.__segInk = all;   // 숨어 있던 화면이 열리면 자리를 다시 잡는다
+})();
+
+const DEEP = new Set(['place']);
+function moveTabInk(view) {
+  const ink = $('tabInk');
+  const tabs = [...document.querySelectorAll('.tab')];
+  const i = tabs.findIndex(t => t.dataset.view === view);
+  if (!ink) return;
+  if (i < 0) { ink.classList.toggle('ready', false); return; }
+  ink.style.transform = `translate3d(${i * 100}%,0,0)`;
+  requestAnimationFrame(() => ink.classList.toggle('ready', true));
+}
 
 function goto(view) {
+  const first = !state.view;
   state.view = view;
   VIEWS.forEach(v => $('view-' + v).classList.toggle('hidden', v !== view));
   document.querySelectorAll('.tab').forEach(t =>
     t.classList.toggle('on', t.dataset.view === view));
+  /* 상세는 2뎁스다 — 탭으로 갈 곳이 아니라 뒤로 나올 곳이다 */
+  document.body.classList.toggle('deep', DEEP.has(view));
+  if (first) { const k = $('tabInk'); if (k) k.style.transition = 'none'; }
+  moveTabInk(view);
+  if (window.__segInk) requestAnimationFrame(window.__segInk);
+  if (first) requestAnimationFrame(() => { const k = $('tabInk'); if (k) k.style.transition = ''; });
   els.mini.classList.toggle('hidden', view === 'player' || !P.lines.length);
   if (view !== 'nearby') els.mini.classList.remove('above-card');
   if (view === 'home') { renderHome(); if (homeReady) startHero(); }
   else stopHero();
   if (view === 'search') renderSearch();
   if (view === 'nearby') renderNearby();
+  if (window.__plDockCheck) setTimeout(window.__plDockCheck, 60);
   if (view === 'settings') renderQuota();
   if (view === 'player') closeScript();
 }
@@ -2568,7 +2647,7 @@ const SAMPLE = '여러분, 지금 여러분이 서 계신 곳은 첨성대입니
 async function previewGoogle() {
   killAudio();
   P.seq++;
-  els.status.textContent = '목소리를 만드는 중';
+  els.status.textContent = '목소리 준비 중';
   try {
     const got = await fetchAudio(SAMPLE);
     const a = new Audio(got.url);
@@ -2603,7 +2682,7 @@ const ENGINE_NAME = { google: '구글', azure: 'Azure', eleven: 'ElevenLabs' };
 
 function renderGVoices() {
   const name = ENGINE_NAME[prefs.engine] || '구글';
-  if (els.netVoiceLabel) els.netVoiceLabel.textContent = `${name} 보이스`;
+  if (els.netVoiceLabel) els.netVoiceLabel.textContent = `${name} 목소리`;
   if (!gvoices.length) {
     els.gvoiceList.innerHTML =
       `<p class="empty">${name} 키를 넣으면 목소리를 고를 수 있어요.</p>`;
@@ -2697,7 +2776,7 @@ async function loadNetVoices() {
   if (!tts.available(prefs.engine)) {
     gvoices = []; renderGVoices(); openKeyBox(); return;
   }
-  els.gvoiceList.innerHTML = '<p class="empty">목소리 목록을 받아오는 중이에요.</p>';
+  els.gvoiceList.innerHTML = '<p class="empty">목소리를 불러오는 중이에요.</p>';
   try {
     gvoices = await tts.voices(prefs.engine);
     if (!voiceOf() && gvoices.length) { setVoiceOf(gvoices[0].id); savePrefs(); }
@@ -2706,7 +2785,7 @@ async function loadNetVoices() {
     els.gvoiceList.innerHTML =
       `<p class="empty">${err.message === 'BADKEY'
         ? '키가 맞지 않아요. 다시 확인해 주세요.'
-        : '목소리 목록을 받지 못했어요. 키와 지역을 확인해 주세요.'}</p>`;
+        : '목소리를 못 불렀어요. 키와 지역을 확인해 주세요.'}</p>`;
     return;
   }
   renderGVoices();
@@ -2908,3 +2987,548 @@ if ('serviceWorker' in navigator) {
 /* 디버그용 — 콘솔에서 docent.P / docent.state */
 window.docent = { P, state, prefs, buildChunks, playChunk, fetchAudio,
   get map() { return mapObj; }, researchHere };
+
+/* ══════════ 장소 상세 ══════════════════════════════════
+   듣기 전에 한 장. 무엇을 듣게 되는지 보고 고르게 한다. */
+const PL = { name: '', coord: null, data: null, seq: 0, back: 'home' };
+
+/* 목소리 얼굴 — 보내주신 3D 캐릭터 사진의 결을 보고 SVG 로 그렸다.
+   사진 자체는 저작권이 있어 쓰지 못하고 형태만 참고했다.
+   48px 에서도 읽히도록 머리는 통으로 얹고 그 위에 얼굴을 올린다. */
+const AV_SKIN = ['#FFE3D0', '#F8CBAE'];
+const AV_DEEP = ['#F0BE9C', '#E5AF8D'];
+const AV_HAIR = [['#8A5E40', '#5C3A26'], ['#6A4530', '#3B2519']];
+/* 머리 모양은 셋뿐이라, 배경과 피부 톤을 따로 돌려 다섯이 다 달라 보이게 한다 */
+const AV_BG = ['#BFCBEF', '#F0C6B2', '#EAC2DC', '#BADEC9', '#CCC6ED', '#AACBE8'];
+
+/* 여성 셋 · 남성 셋 — 보내주신 사진의 머리와 옷을 따랐다 */
+const AV_STYLE = [
+  { s: 'f', hair: 'long',  wear: 'blazer', bg: '#BFCBEF', tone: 0 },  // 긴 생머리 · 회색 재킷
+  { s: 'm', hair: 'crop',  wear: 'tee',    bg: '#AACBE8', tone: 1 },  // 단정한 머리 · 하늘 티셔츠
+  { s: 'f', hair: 'half',  wear: 'blazer', bg: '#F0C6B2', tone: 1 },  // 반묶음 · 회색 재킷
+  { s: 'm', hair: 'messy', wear: 'hood',   bg: '#BADEC9', tone: 0 },  // 부스스한 머리 · 후드
+  { s: 'f', hair: 'pony',  wear: 'shirt',  bg: '#EAC2DC', tone: 0 },  // 포니테일 · 흰 셔츠
+  { s: 'm', hair: 'side',  wear: 'shirt',  bg: '#CCC6ED', tone: 1 },  // 옆가르마 · 흰 셔츠
+];
+
+/* 얼굴 뒤로 흐르는 머리 — 어깨까지 내려온다 */
+const AV_BACK = {
+  long: '<path d="M23 46c0-17 12-28 27-28s27 11 27 28c0 16-2 30-5 42H62c3-12 5-25 5-38 0-12-7-19-17-19s-17 7-17 19c0 13 2 26 5 38H28c-3-12-5-26-5-42Z"/>',
+  half: '<path d="M25 46c0-16 11-26 25-26s25 10 25 26c0 11-1 21-3 30h-9c2-9 3-19 3-28 0-11-6-17-16-17s-16 6-16 17c0 9 1 19 3 28h-9c-2-9-3-19-3-30Z"/>'
+      + '<path d="M70 24c8 3 12 10 12 19 0 7-2 14-5 20l-7-3c3-6 4-11 4-16 0-7-2-12-7-15l3-5Z"/>',
+  pony: '<path d="M26 46c0-15 11-25 24-25s24 10 24 25c0 6-.4 12-1 17h-8c.8-5 1-11 1-16 0-11-6-17-16-17s-16 6-16 17c0 5 .2 11 1 16h-8c-.6-5-1-11-1-17Z"/>'
+      + '<path d="M67 25c9 3 14 11 14 22 0 9-3 17-7 24l-8-4c4-6 6-13 6-20 0-8-3-14-9-17l4-5Z"/>',
+  crop: '', messy: '', side: '',
+};
+
+/* 앞머리 — 얼굴 위에 얹는다.
+   위쪽 곡선은 얼굴 타원을 그대로 따라가고, 아래 곡선이 머리 모양을 만든다. */
+const AV_FRINGE = {
+  long:  'M29.8 48A20.5 22.5 0 0 1 70.2 48C66 42.6 59.6 40 50 40s-16 2.6-20.2 8Z',
+  pony:  'M31.4 43.6A20.5 22.5 0 0 1 68.6 43.6C64.6 38.8 58.2 36.6 50 36.6s-14.6 2.2-18.6 7Z',
+  half:  'M30.6 45.8A20.5 22.5 0 0 1 69.4 45.8C66 40.2 59 37.4 50 37.4s-16 2.8-19.4 8.4Z',
+  crop:  'M30.4 46.6A20.5 22.5 0 0 1 69.6 46.6C66.4 41 59.4 38.2 50 38.2s-16.4 2.8-19.6 8.4Z',
+  messy: 'M29.8 48A20.5 22.5 0 0 1 70.2 48c-1.6-4-4.4-6-6.6-5.2 1-2.4 0-4.6-1.8-5.4-2 3-5 4.4-8.4 4-1.4-2-3.6-2.8-5.8-2.2-2.6 2.6-6 3.6-9.6 3-3.4 1-6.4 3.6-8.2 8Z',
+  side:  'M29.8 48A20.5 22.5 0 0 1 70.2 48c-1-6.6-5.4-10.6-12-11.6C50 35.2 40.4 39 33.8 43c-1.8 1.2-3.2 2.8-4 5Z',
+};
+/* 여성은 앞으로 흘러내린 옆머리로 한눈에 구분된다 */
+const AV_LOCK = {
+  long: '<path d="M28.6 44c-2 8-2.6 18-1.6 30l6 .6c-1-11-.6-20 1-27l-5.4-3.6Z"/>'
+      + '<path d="M71.4 44c2 8 2.6 18 1.6 30l-6 .6c1-11 .6-20-1-27l5.4-3.6Z"/>',
+  half: '<path d="M29 46c-1.4 6-1.8 13-1.2 21l5 .4c-.6-8-.4-14 .8-19L29 46Z"/>',
+  pony: '<path d="M30 45c-1 5-1.2 10-.8 16l4.4.4c-.4-6-.3-11 .6-15L30 45Z"/>',
+  crop: '', messy: '', side: '',
+};
+
+/* 옷 — 어깨선과 깃 */
+const AV_WEAR = {
+  blazer: `<path d="M50 80c-19 0-32 10-35 28-.5 3-.8 5-.8 7h71.6c0-2-.3-4-.8-7-3-18-16-28-35-28Z" fill="#B4B8C2"/>
+    <path d="M41 81l9 14 9-14c-3-1-6-1.5-9-1.5s-6 .5-9 1.5Z" fill="#FDFDFE"/>
+    <path d="M39 81c-6 2-11 5-14 8l11 26h4l-1-34Z" fill="#989DA8"/>
+    <path d="M61 81c6 2 11 5 14 8l-11 26h-4l1-34Z" fill="#989DA8"/>`,
+  shirt: `<path d="M50 80c-19 0-32 10-35 28-.5 3-.8 5-.8 7h71.6c0-2-.3-4-.8-7-3-18-16-28-35-28Z" fill="#FCFCFD"/>
+    <path d="M40 80l10 12-5 6-9-15 4-3Z" fill="#E9EAEE"/>
+    <path d="M60 80l-10 12 5 6 9-15-4-3Z" fill="#E9EAEE"/>
+    <path d="M50 92v23" stroke="#DDDFE4" stroke-width="1.3" fill="none"/>`,
+  tee: `<path d="M50 80c-19 0-32 10-35 28-.5 3-.8 5-.8 7h71.6c0-2-.3-4-.8-7-3-18-16-28-35-28Z" fill="#A6CEEA"/>
+    <path d="M39 81c4 7 8 11 11 11s7-4 11-11c-3.4-1-7-1.5-11-1.5s-7.6.5-11 1.5Z" fill="#8ABAD9"/>`,
+  hood: `<path d="M50 80c-19 0-32 10-35 28-.5 3-.8 5-.8 7h71.6c0-2-.3-4-.8-7-3-18-16-28-35-28Z" fill="#E2E3E8"/>
+    <path d="M38 80c3.4 9 8 14 12 14s8.6-5 12-14c-3.6-1-7.6-1.5-12-1.5s-8.4.5-12 1.5Z" fill="#FBFBFC"/>
+    <path d="M35 81c-6 2-10 5-13 9 6 5 10 11 12 18l5-27h-4Z" fill="#CCCED5"/>
+    <path d="M65 81c6 2 10 5 13 9-6 5-10 11-12 18l-5-27h4Z" fill="#CCCED5"/>
+    <path d="M50 94v21" stroke="#C3C5CD" stroke-width="1.8" stroke-linecap="round" fill="none"/>`,
+};
+
+function faceSVG(i, male) {
+  /* 성별에 맞는 것들 중에서 골라, 옆자리와 겹치지 않게 한다 */
+  const pool = AV_STYLE.filter(a => a.s === (male ? 'm' : 'f'));
+  const a = pool[i % pool.length];
+  const tone = (i + (male ? 1 : 0)) % 2;
+  const bg = AV_BG[(i * 2 + (male ? 1 : 0)) % AV_BG.length];
+  const sk = AV_SKIN[tone], dp = AV_DEEP[tone];
+  const [h1, h2] = AV_HAIR[tone];
+  const u = `v${male ? 'm' : 'f'}${i}`;
+  return `<svg viewBox="0 0 100 100" aria-hidden="true">
+  <defs>
+    <radialGradient id="bg${u}" cx="34%" cy="18%" r="94%">
+      <stop offset="0" stop-color="#FFF" stop-opacity=".66"/>
+      <stop offset="1" stop-color="${bg}"/>
+    </radialGradient>
+    <linearGradient id="sk${u}" x1="24%" y1="6%" x2="80%" y2="98%">
+      <stop offset="0" stop-color="#FFF3E9"/><stop offset=".55" stop-color="${sk}"/>
+      <stop offset="1" stop-color="${dp}"/>
+    </linearGradient>
+    <linearGradient id="hr${u}" x1="18%" y1="0%" x2="82%" y2="86%">
+      <stop offset="0" stop-color="${h1}"/><stop offset="1" stop-color="${h2}"/>
+    </linearGradient>
+    <clipPath id="cp${u}"><circle cx="50" cy="50" r="50"/></clipPath>
+  </defs>
+  <g clip-path="url(#cp${u})">
+    <circle cx="50" cy="50" r="50" fill="url(#bg${u})"/>
+    <g fill="url(#hr${u})">${AV_BACK[a.hair] || ''}</g>
+    ${AV_WEAR[a.wear]}
+    <path d="M42 66h16v14a8 8 0 0 1-16 0V66Z" fill="${dp}"/>
+    <ellipse cx="50" cy="79" rx="10" ry="4" fill="#000" opacity=".07"/>
+    <ellipse cx="50" cy="45" rx="24" ry="25" fill="url(#hr${u})"/>
+    <ellipse cx="28.5" cy="53" rx="3.8" ry="4.8" fill="${sk}"/>
+    <ellipse cx="71.5" cy="53" rx="3.8" ry="4.8" fill="${sk}"/>
+    <ellipse cx="50" cy="52" rx="20.5" ry="22.5" fill="url(#sk${u})"/>
+    <ellipse cx="41" cy="40" rx="9" ry="7" fill="#FFF" opacity=".2"/>
+    <ellipse cx="36.5" cy="59" rx="4.2" ry="2.8" fill="#F79A8C" opacity=".38"/>
+    <ellipse cx="63.5" cy="59" rx="4.2" ry="2.8" fill="#F79A8C" opacity=".38"/>
+    <ellipse cx="41.8" cy="53.5" rx="4.4" ry="5" fill="#FFF"/>
+    <ellipse cx="58.2" cy="53.5" rx="4.4" ry="5" fill="#FFF"/>
+    <ellipse cx="42.1" cy="54" rx="3.4" ry="4" fill="#513524"/>
+    <ellipse cx="58.5" cy="54" rx="3.4" ry="4" fill="#513524"/>
+    <circle cx="42.1" cy="54.4" r="1.7" fill="#241811"/>
+    <circle cx="58.5" cy="54.4" r="1.7" fill="#241811"/>
+    <circle cx="43.4" cy="52.2" r="1.4" fill="#FFF"/>
+    <circle cx="59.8" cy="52.2" r="1.4" fill="#FFF"/>
+    <path d="M36.5 45.6c1.8-1.8 5.4-2.2 7.7-.9" stroke="${h2}" stroke-width="2"
+          stroke-linecap="round" fill="none"/>
+    <path d="M63.5 45.6c-1.8-1.8-5.4-2.2-7.7-.9" stroke="${h2}" stroke-width="2"
+          stroke-linecap="round" fill="none"/>
+    <path d="M48.8 60.6c1 .9 1.4 .9 2.4 0" stroke="${dp}" stroke-width="1.3"
+          stroke-linecap="round" fill="none"/>
+    <path d="M45.6 64.6c1.7 2.2 3 3.1 4.4 3.1s2.7-.9 4.4-3.1" fill="#E58A80"/>
+    <path d="M45.6 64.6c1.7 2.2 3 3.1 4.4 3.1s2.7-.9 4.4-3.1" stroke="#C4685F" stroke-width="1.4"
+          stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <path d="${AV_FRINGE[a.hair]}" fill="url(#hr${u})"/>
+    <g fill="url(#hr${u})">${AV_LOCK[a.hair] || ''}</g>
+    <path d="M38 30c5 4 12 6 19 5" stroke="#FFF" stroke-width="1.6" stroke-linecap="round"
+          fill="none" opacity=".26"/>
+  </g>
+</svg>`;
+}
+
+async function openPlace(name) {
+  if (!name) return;
+  PL.name = name;
+  PL.back = state.view === 'place' ? PL.back : (state.view || 'home');
+  const seq = ++PL.seq;
+  warmPlace(name);
+  goto('place');
+  $('view-place').scrollTo({ top: 0 });
+
+  // 아는 것부터 먼저 채운다
+  $('plName').textContent = name;
+  $('plKind').textContent = '';
+  $('plAddr').textContent = '';
+  $('plSummary').textContent = '요약하고 있어요';
+  $('plStory').textContent = '';
+  $('plImg').removeAttribute('src');
+  $('plDistWrap').hidden = true;
+  for (const id of ['plGeoSec', 'plTrendSec', 'plNearSec']) $(id).classList.add('hidden');
+  markLiked();
+  drawVoicePicks();
+  drawPostLinks(name);
+
+  let hit = null;
+  try { hit = await geo2.identify(name); } catch (_) {}
+  if (seq !== PL.seq) return;
+  if (hit) {
+    PL.coord = hit.lat != null ? { lat: hit.lat, lon: hit.lon } : null;
+    /* 위키데이터에 한국어 설명이 없으면 영어가 온다.
+       'Korean cultural heritage item' 같은 건 읽는 사람에게 도움이 안 된다. */
+    /* 칩은 한 낱말 자리다 — '경기도 수원시에 위치한 조선시대의 성'은 설명이지 종류가 아니다 */
+    const d = (hit.desc || '').trim();
+    const ko = /[가-힣]/.test(d) && d.length <= 10 ? d : '';
+    PL.kindFixed = !!ko;
+    $('plKind').textContent = ko || geo2.TIER_LABEL[hit.tier] || '장소';
+    if (!ko) score.typesOf([name]).then(m => {
+      if (seq !== PL.seq || PL.kindFixed) return;
+      const t = (m[name] || []).find(x => /[가-힣]/.test(x));
+      if (t) $('plKind').textContent = t;
+    }).catch(() => {});
+  }
+
+  let data = null;
+  try { data = await wiki.gather({ manual: name }); } catch (_) {}
+  if (seq !== PL.seq) return;
+  PL.data = data;
+  if (data) {
+    if (data.coord) PL.coord = data.coord;
+    if (data.image) $('plImg').src = data.image;
+    $('plName').textContent = data.place || name;
+    /* '요새'보다 '산성'이 낫다 — 백과사전 첫 문장의 정의어가 가장 정확하다 */
+    if (!PL.kindFixed) {
+      const k = kindFrom(data.sources?.[0]?.text || '', data.place || name);
+      if (k) { PL.kindFixed = true; $('plKind').textContent = k; }
+      else if (!$('plKind').textContent) $('plKind').textContent = '장소';
+    }
+    fillSummary(data);
+    fillStory(data, seq);
+  }
+  fillWhere();
+  fillTrend(data?.place || name, seq);
+  fillNear(seq);
+}
+
+/* 종류 — '…은 백제 시대의 산성이다'에서 '산성'만 꺼낸다.
+   문장 끝 정의어를 먼저 보고, 안 잡히면 장소 낱말을 훑는다. */
+const KIND_SKIP = /이름|하나|것|곳|말|약칭|줄임말|지역명|지역|장소|건축물|구조물|시설|건물/;
+const KIND_WORDS = ['해수욕장','국립공원','도립공원','놀이공원','테마파크','전망대','미술관','박물관',
+  '기념관','도서관','식물원','동물원','수목원','유원지','대성당','성당','사찰','사원','향교','서원',
+  '궁궐','궁전','왕궁','고궁','산성','읍성','성곽','고분','왕릉','유적','폭포','계곡','저수지','호수',
+  '해변','해안','항구','등대','시장','거리','광장','공원','다리','타워','마을','온천','산책로',
+  '천문대','고택','정자','누각','고분군','사지','능','묘','터',
+  '섬','산','강','절','탑','성','문','역','댐','길'];
+function kindFrom(text, title = '') {
+  let c = (text || '').replace(/\s+/g, ' ').split(/(?<=다)\.\s/)[0] || '';
+  if (title && c.startsWith(title)) c = c.slice(title.length);
+  const m = c.match(/([가-힣]{1,8})(?:이다|입니다|이었다|였다)\s*\.?\s*$/)
+         || c.match(/([가-힣]{1,8})(?:이자|이며)/)
+         || c.match(/([가-힣]{2,8})(?:으로|로),/);   // '…석조 건축물로, 가장 오래된…'
+  let k = m?.[1] || '';
+  if (k && KIND_SKIP.test(k)) k = '';
+  if (k.length > 1) return k;
+  for (const w of KIND_WORDS) if (c.includes(w)) return w;
+  return k;
+}
+
+/* AI 요약 — 백과사전 말투를 걷어내고 세 줄 안에 담는다.
+   '사적 제12호로, 대한민국 충청남도 …에 소재하고 있는 성이다' 같은 문장은
+   읽는 사람에게 아무것도 남기지 않는다. */
+/* 글자 수로 어림잡으면 어떤 문장은 두 줄, 어떤 문장은 네 줄이 된다.
+   그려 놓고 높이를 재서 세 줄을 넘기 직전까지만 담는다. */
+const SUM_LINES = 3;
+function tidy(line) {
+  return llm.soften(line).replace(/\s+([,.])/g, '$1').replace(/\s{2,}/g, ' ').trim();
+}
+function fillSummary(data) {
+  const el = $('plSummary');
+  const raw = (data.sources?.[0]?.text || '').replace(/\s+/g, ' ').trim();
+  if (!raw) { el.textContent = '아직 자료가 없어요'; return; }
+  /* 제목이 바로 위에 있는데 문장마다 '불국사는'으로 시작하면 지겹다 */
+  const name = data.place || '';
+  const dup = name && new RegExp('^' + name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*(?:은|는|이|가)\\s*');
+  const lh = parseFloat(getComputedStyle(el).lineHeight) || 21;
+  const cap = lh * SUM_LINES + 2;
+
+  el.textContent = '';
+  let out = '';
+  for (const line of raw.split(/(?<=[.!?])\s+/)) {
+    let t = tidy(line);
+    if (out && dup) t = t.replace(dup, '');
+    if (!t) continue;
+    const next = out ? `${out} ${t}` : t;
+    el.textContent = next;
+    if (out && el.clientHeight > cap) { el.textContent = out; return; }
+    out = next;
+  }
+  if (!out) el.textContent = tidy(raw);
+}
+
+/* 이야기 — 첫 문장을 굵게 세워 눈이 걸리게 한다 */
+async function fillStory(data, seq) {
+  const el = $('plStory');
+  el.textContent = '이야기를 쓰고 있어요';
+  let out = '';
+  try {
+    for await (const t of llm.stream(data, { length: 'normal', here: false })) {
+      if (seq !== PL.seq) return;
+      out += t;
+      const [first, ...rest] = out.split(/(?<=[.!?])\s+/);
+      el.innerHTML = `<b>${esc(first)}</b> ${esc(rest.join(' '))}`;
+    }
+  } catch (_) {
+    if (out) return;
+    el.textContent = (data.sources?.[0]?.text || '').slice(0, 600) || '이야기를 못 불렀어요';
+  }
+}
+const esc = t => (t || '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
+
+/* 어디에 있나 — 주소와 여기서부터의 거리 */
+async function fillWhere() {
+  const d = PL.data;
+  /* 본문에서 주소를 긁어내면 '충청남도 공주시'까지밖에 안 나온다.
+     좌표를 주소로 되돌리면 번지까지 온전히 얻을 수 있다. */
+  $('plAddr').textContent = (d?.sources?.[0]?.text || '')
+    .match(/[가-힣]+(특별시|광역시|특별자치시|특별자치도|도)\s?[가-힣]+[시군구]/)?.[0] || '';
+  if (PL.coord) {
+    const seq = PL.seq;
+    geo.reverse(PL.coord.lat, PL.coord.lon).then(r => {
+      if (seq === PL.seq && r.address) $('plAddr').textContent = r.address;
+    }).catch(() => {});
+  }
+  if (state.pos && PL.coord) {
+    const m = metersBetween(state.pos, PL.coord);
+    $('plDist').textContent = m > 1000 ? `${(m / 1000).toFixed(1)}km` : `${Math.round(m)}m`;
+    $('plDistWrap').hidden = false;
+  }
+  const facts = [];
+  if (PL.coord) facts.push(['좌표', `${PL.coord.lat.toFixed(4)}, ${PL.coord.lon.toFixed(4)}`]);
+  if (PL.data?.nearby?.length) facts.push(['가까운 곳', PL.data.nearby.slice(0, 3).join(' · ')]);
+  if (facts.length) {
+    $('plFacts').innerHTML = facts.map(([k, v]) =>
+      `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('');
+    $('plGeoSec').classList.remove('hidden');
+  }
+}
+
+/* 언제 많이 찾을까 — 위키백과 조회수의 달별 흐름 */
+/* 막대는 눈에 들어온 뒤에 자란다 — 스크롤해 내려오면 그때 움직인다 */
+let trendWatch = null;
+function growOnView(el) {
+  trendWatch?.disconnect();
+  if (!('IntersectionObserver' in window)) { el.classList.add('in'); return; }
+  trendWatch = new IntersectionObserver((es, o) => {
+    if (!es.some(e => e.isIntersecting)) return;
+    requestAnimationFrame(() => el.classList.add('in'));
+    o.disconnect();
+  }, { root: $('view-place'), threshold: 0.25 });
+  trendWatch.observe(el);
+}
+
+async function fillTrend(title, seq) {
+  const rows = await place.monthlyInterest(title);
+  if (seq !== PL.seq || !rows) return;
+  const max = Math.max(...rows.map(r => r.views)) || 1;
+  const peak = rows.reduce((a, b) => (b.views > a.views ? b : a));
+  const chart = $('plTrend');
+  chart.classList.remove('in');
+  chart.innerHTML = rows.map((r, i) => `
+    <span class="${r === peak ? 'peak' : ''}">
+      <i style="--h:${Math.max(4, (r.views / max) * 100)}%;--i:${i}"></i>
+      <em>${r.month}</em>
+    </span>`).join('');
+  growOnView(chart);
+  $('plTrendNote').textContent =
+    `${peak.month}월에 가장 많이 찾아봤어요. 위키백과 조회수 기준이라 실제 방문객 수는 아니에요.`;
+  $('plTrendSec').classList.remove('hidden');
+}
+
+/* 같이 둘러볼 곳 — 셋에서 여덟 곳 */
+async function fillNear(seq) {
+  if (!PL.coord) return;
+  try {
+    const list = await wiki.nearby(PL.coord.lat, PL.coord.lon, 5000, 40);
+    if (seq !== PL.seq) return;
+    const cand = list.map(x => x.title)
+      .filter(n => n !== PL.name && !geo2.adminName(n) && !geo2.boring(n));
+    const ranked = await score.rank(cand.slice(0, 24).map(n => ({ name: n })),
+                                    { pos: state.pos, views: false });
+    if (seq !== PL.seq) return;
+    const names = ranked.map(x => x.name).slice(0, 8);
+    if (names.length < 3) return;
+    fillCards($('plNear'), names);
+    $('plNearSec').classList.remove('hidden');
+  } catch (_) {}
+}
+
+/* 목소리 고르기 */
+/* 원 아래 이름은 한 단어면 충분하다.
+   'Hyunsu (Korea)' 처럼 길면 잘려서 '…' 만 남는다. */
+function shortVoice(label) {
+  const t = (label || '').replace(/\s*\([^)]*\)/g, '').replace(/ 목소리$/, '').trim();
+  return t.split(/[\s·]/)[0] || t;
+}
+
+function drawVoicePicks() {
+  const host = $('plVoices');
+  /* 인터넷 보이스가 없으면 이 기기의 목소리를 보여준다.
+     '설정에서 고르세요'라고만 하면 아무것도 못 고른다. */
+  /* 옆으로 미는 줄이라 다 담아도 된다 — 고를 수 있는 목소리를 감출 이유가 없다 */
+  const net = gvoices.length ? gvoices.slice(0, 9) : [];
+  const list = net.length ? net
+    : [...els.voiceSel.options].slice(0, 9).map(o => ({ id: o.value, label: shortVoice(o.text) }));
+  if (!list.length) {
+    host.innerHTML = '<p class="pl-note">설정에서 목소리를 먼저 골라 주세요</p>';
+    return;
+  }
+  const now = net.length ? voiceOf() : els.voiceSel.value;
+  host.dataset.kind = net.length ? 'net' : 'device';
+  /* 얼굴은 성별 안에서 차례로 돌린다 — 나란히 선 둘이 겹치지 않게 */
+  const seen = { m: 0, f: 0 };
+  host.innerHTML = list.map((v) => {
+    const male = /남성|male/i.test(v.desc || '');
+    const i = male ? seen.m++ : seen.f++;
+    return `<button class="vpick${v.id === now ? ' on' : ''}" data-v="${v.id}">
+      <span class="vface">${faceSVG(i, male)}</span>
+      <b>${shortVoice(v.label)}</b></button>`;
+  }).join('');
+  [...host.children].forEach(b => {
+    b.onclick = () => {
+      if (host.dataset.kind === 'net') { setVoiceOf(b.dataset.v); markVoiceButtons(); }
+      else { els.voiceSel.value = b.dataset.v; prefs.voice = b.dataset.v; els.voiceNow.textContent = b.dataset.v; }
+      savePrefs();
+      [...host.children].forEach(x => x.classList.toggle('on', x === b));
+    };
+  });
+}
+
+/* 다른 사람들의 기록 — 검색 서비스 열쇠가 없어 결과로 이어 준다 */
+const OUT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M8.5 6h9.5v9.5M18 6 6 18"/></svg>';
+function drawPostLinks(name) {
+  const q = encodeURIComponent(name + ' 여행');
+  $('plPosts').innerHTML = [
+    ['네이버 블로그', `https://search.naver.com/search.naver?where=blog&query=${q}`],
+    ['인스타그램', `https://www.instagram.com/explore/tags/${encodeURIComponent(name.replace(/\s/g, ''))}/`],
+    ['유튜브', `https://www.youtube.com/results?search_query=${q}`],
+  ].map(([t, u]) => `<a href="${u}" target="_blank" rel="noopener">${t}${OUT}</a>`).join('');
+}
+
+/* 찜 · 공유 */
+function markLiked() {
+  $('plLike').classList.toggle('on', place.liked().includes(PL.name));
+}
+$('plLike').onclick = () => {
+  const on = place.toggleLike(PL.name);
+  markLiked();
+  notify(on ? '찜했어요' : '찜을 풀었어요');
+};
+$('plShare').onclick = async () => {
+  const r = await place.share(PL.name, $('plSummary').textContent.slice(0, 80));
+  if (r === 'copied') notify('링크를 복사했어요');
+  if (r === 'fail') notify('공유하지 못했어요');
+};
+
+$('plBack').onclick = () => goto(PL.back || 'home');
+
+/* 왼쪽 가장자리에서 오른쪽으로 밀면 뒤로 — 한 손으로 빠져나올 수 있게.
+   손가락을 따라 화면이 같이 밀리고, 절반쯤 왔을 때 놓으면 넘어간다. */
+(() => {
+  const EDGE = 30, TAKE = 0.32, FLICK = 0.5;   // 시작 폭, 넘길 비율, 던지는 속도(px/ms)
+  const PANES = { place: () => PL.back || 'home', search: () => cameFrom || 'home' };
+  let pane = null, back = '', x0 = 0, y0 = 0, t0 = 0, dx = 0, live = false, judged = false;
+
+  const paint = (v, ms) => {
+    pane.style.transition = ms ? `transform ${ms}ms cubic-bezier(.32,.72,0,1)` : 'none';
+    pane.style.transform = v ? `translate3d(${v}px,0,0)` : '';
+  };
+  const done = () => { pane.style.transition = ''; pane.style.transform = ''; pane = null; };
+
+  addEventListener('touchstart', e => {
+    const go = PANES[state.view];
+    if (!go || e.touches.length !== 1) return;
+    const t = e.touches[0];
+    if (t.clientX > EDGE) return;
+    pane = $('view-' + state.view); back = go();
+    x0 = t.clientX; y0 = t.clientY; t0 = performance.now();
+    dx = 0; live = false; judged = false;
+    pane.style.willChange = 'transform';
+  }, { passive: true });
+
+  addEventListener('touchmove', e => {
+    if (!pane) return;
+    const t = e.touches[0];
+    dx = t.clientX - x0;
+    if (!judged) {
+      // 세로로 먼저 움직였다면 스크롤이지 뒤로가기가 아니다
+      if (Math.abs(t.clientY - y0) > Math.abs(dx)) { pane.style.willChange = ''; pane = null; return; }
+      if (Math.abs(dx) < 8) return;
+      judged = true; live = true;
+    }
+    if (live) paint(Math.max(0, dx), 0);
+  }, { passive: true });
+
+  const finish = () => {
+    if (!pane) return;
+    const p = pane;
+    if (!live) { p.style.willChange = ''; pane = null; return; }
+    const speed = dx / Math.max(1, performance.now() - t0);
+    if (dx > innerWidth * TAKE || speed > FLICK) {
+      paint(innerWidth, 260);
+      setTimeout(() => { goto(back); p.style.transition = ''; p.style.transform = ''; p.style.willChange = ''; }, 250);
+      pane = null;
+    } else {
+      paint(0, 220);
+      setTimeout(() => { p.style.transition = ''; p.style.transform = ''; p.style.willChange = ''; }, 220);
+      pane = null;
+    }
+  };
+  addEventListener('touchend', finish, { passive: true });
+  addEventListener('touchcancel', finish, { passive: true });
+})();
+$('plHero').onclick = () => {
+  const url = $('plImg').getAttribute('src');
+  if (!url) return;
+  vwList = [{ url, title: PL.name }];
+  openViewer(0);
+};
+const goListen = () => { if (PL.name) startNarration(PL.name); };
+$('plCta').onclick = goListen;
+$('plCta2').onclick = goListen;
+
+/* 위쪽 버튼이 화면 밖으로 나가면 아래에서 올라온다 */
+(() => {
+  const view = $('view-place'), dock = $('plDock'), btn = $('plCta'), bar = $('plBar');
+  const check = () => {
+    if (state.view !== 'place') { dock.classList.remove('on'); return; }
+    // 위 버튼이 화면 아래로 사라지면 그때 아래 버튼이 올라온다
+    const r = btn.getBoundingClientRect();
+    dock.classList.toggle('on', r.top > innerHeight - 96 || r.bottom < 0);
+    // 사진을 지나면 막대에 흰 바탕이 깔린다
+    bar.classList.toggle('solid', view.scrollTop > 190);
+  };
+  view.addEventListener('scroll', check, { passive: true });
+  window.__plDockCheck = check;
+})();
+
+/* 길안내 — 이 기기에 깔린 지도 앱으로 넘긴다 */
+$('plRoute').onclick = () => {
+  if (!PL.coord) { notify('좌표를 찾지 못했어요'); return; }
+  $('routeApps').innerHTML = place.ROUTE_APPS.map(a =>
+    `<button class="appbtn" data-a="${a.id}">
+       <i style="background:${a.color};color:${a.ink || '#FFF'}">${a.mark}</i>
+       <b>${a.name}</b></button>`).join('');
+  [...$('routeApps').children].forEach(b => {
+    b.onclick = () => {
+      place.openRoute(b.dataset.a, state.pos, PL.coord, PL.name);
+      closeRoute();
+    };
+  });
+  $('routeSheet').classList.remove('hidden');
+  $('routeInner').style.transform = '';
+};
+function closeRoute() {
+  $('routeInner').style.transition = 'transform .22s ease';
+  $('routeInner').style.transform = 'translateY(100%)';
+  setTimeout(() => {
+    $('routeSheet').classList.add('hidden');
+    $('routeInner').style.transition = '';
+    $('routeInner').style.transform = '';
+  }, 220);
+}
+/* 손잡이를 끌어 여닫는다. 아래로 끌면 닫히고, 살짝 올리면 제자리로 돌아온다. */
+(() => {
+  const inner = $('routeInner'), head = $('routeHead');
+  let y0 = 0, dy = 0, on = false;
+  const start = e => { on = true; dy = 0; y0 = e.clientY; inner.style.transition = 'none'; };
+  const move = e => {
+    if (!on) return;
+    dy = e.clientY - y0;
+    inner.style.transform = `translateY(${Math.max(-12, dy)}px)`;   // 위로는 살짝만
+  };
+  const end = () => {
+    if (!on) return;
+    on = false;
+    inner.style.transition = 'transform .26s var(--gentle)';
+    if (dy > 80) { closeRoute(); return; }
+    inner.style.transform = '';
+  };
+  head.addEventListener('pointerdown', start);
+  addEventListener('pointermove', move);
+  addEventListener('pointerup', end);
+  addEventListener('pointercancel', end);
+})();

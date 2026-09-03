@@ -200,12 +200,35 @@ async function azVoices(key) {
     .filter(v => v.Locale === 'ko-KR')
     .map(v => ({
       id: v.ShortName,
-      // LocalName 은 '선히'처럼 우리말 이름이라 그대로 쓰면 알아보기 쉽다
-      label: `${v.LocalName || v.DisplayName} 목소리`,
-      desc: (v.Gender === 'Male' ? '남성' : '여성')
-            + (v.VoiceType === 'Neural' ? ' · 자연스러운 신경망' : ''),
-    }));
+      /* LocalName 은 '선히'처럼 우리말 이름이라 그대로 쓴다.
+         'Hyunsu Multilingual' 처럼 영어로 오는 것만 우리말 이름을 붙인다.
+         목록 제목이 이미 'Azure 목소리'라서 줄마다 '목소리'를 붙이지 않는다. */
+      label: AZ_NAME[v.ShortName] || v.LocalName || v.DisplayName,
+      desc: v.Gender === 'Male' ? '남성' : '여성',
+    }))
+    /* 같은 사람의 목소리가 두 종류로 오기도 한다 — 이름이 겹치면 하나만 남긴다 */
+    .filter((v, i, a) => a.findIndex(x => x.label === v.label) === i)
+    .sort((a, b) => {
+      const ia = AZ_ORDER.indexOf(a.label), ib = AZ_ORDER.indexOf(b.label);
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+    });
 }
+
+/* Azure 가 영어 이름으로 주는 한국어 목소리 */
+const AZ_NAME = {
+  'ko-KR-HyunsuMultilingualNeural': '현수',
+  'ko-KR-HyunsuNeural': '현수',
+  'ko-KR-SeoHyeonNeural': '서현',
+  'ko-KR-JiMinNeural': '지민',
+  'ko-KR-YuJinNeural': '유진',
+  'ko-KR-SoonBokNeural': '순복',
+  'ko-KR-GookMinNeural': '국민',
+  'ko-KR-BongJinNeural': '봉진',
+  'ko-KR-InJoonNeural': '인준',
+  'ko-KR-SunHiNeural': '선희',   // 애저는 '선히'로 주지만 우리말 이름은 선희다
+};
+/* 먼저 보여줄 순서 — 여기 없는 목소리는 뒤에 받은 순서대로 붙는다 */
+const AZ_ORDER = ['선희', '지민', '서현', '순복', '유진', '인준', '현수', '봉진', '국민'];
 
 async function azSynth(text, voice, tone, key) {
   const t = AZ_TONE[tone] || AZ_TONE.warm;

@@ -107,16 +107,39 @@ const UNITS = [
 ];
 
 // 받침이 ㅆ인 과거형(했다·왔다·오르내렸다…)을 '~어요'로
+/* 받침이 없으면 '타워이에요'가 아니라 '타워예요'다 */
+function fixYeyo(text) {
+  return text.replace(/([가-힣])이에요/g, (m, ch) =>
+    (ch.charCodeAt(0) - 0xAC00) % 28 === 0 ? ch + '예요' : m);
+}
+
 function pastToPolite(text) {
   return text.replace(/([가-힣])다\./g, (m, ch) =>
     ((ch.charCodeAt(0) - 0xAC00) % 28 === 20) ? ch + '어요.' : m);
 }
 
+/* 백과사전 상투구 — 소리로 들으면 특히 거슬린다.
+   '사적 제12호로, 대한민국 충청남도 …에 소재하고 있는' 은 아무것도 남기지 않는다. */
+const CLICHE = [
+  [/[가-힣]{1,4}\s*제\s*\d+\s*호(?:로|이며|이고|로서),?\s*/g, ''],
+  [/(?:대한민국|한국)\s+(?=[가-힣]{2,}(?:도|시|군|구)\s)/g, ''],
+  [/에\s*(?:소재|위치)하고\s*있는/g, '에 있는'],
+  [/에\s*(?:소재|위치)한/g, '에 있는'],
+];
+
+/* 괄호 — 한자나 원어 표기는 소리로 들으면 방해만 된다.
+   '(538년)'처럼 한글이 든 괄호는 뜻이 있으니 남긴다. */
+const dropParens = t => t.replace(/\s*\(([^)]*)\)/g, (m, inner) =>
+  (/^(?:영어|한자|중국어|일본어|라틴어)\s*:/.test(inner.trim()) || !/[가-힣]/.test(inner)) ? '' : m);
+
 export function soften(text) {
+  text = dropParens(text);
   for (const [a, b] of SOFTEN) text = text.split(a).join(b);
+  for (const [rx, rep] of CLICHE) text = text.replace(rx, rep);
   text = pastToPolite(text);
   for (const [rx, rep] of UNITS) text = text.replace(rx, rep);
-  return text;
+  text = fixYeyo(text);   // 'm'을 '미터'로 바꾼 뒤라야 받침을 알 수 있다
+  return text.replace(/,(?=[가-힣])/g, ', ').replace(/[ \t]{2,}/g, ' ');
 }
 
 const ADMIN = ['교구', '말사', '문화재청', '소재지', '등록문화재',
@@ -144,11 +167,20 @@ function* streamWiki(data, length, here = true) {
     ? `여러분, 지금 여러분이 서 계신 곳은 ${src.title}입니다.\n`
     : `이곳은 ${src.title}입니다.\n`;
   let used = 0;
+  let first = true;
   for (const sent of body.split(/(?<=[.!?])\s+/).map(x => x.trim()).filter(Boolean)) {
     if (boring(sent)) continue;
-    if (used + sent.length > cap) break;
-    used += sent.length;
-    yield sent + '\n';
+    /* 방금 이름을 말했는데 본문이 또 '○○은 …'으로 시작하면 겹친다.
+       뜻은 남기고 주어만 덜어낸다. */
+    let line = sent;
+    if (first) {
+      first = false;
+      const dup = new RegExp('^' + src.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*(?:은|는|이|가)\\s*');
+      line = line.replace(dup, '');
+    }
+    if (used + line.length > cap) break;
+    used += line.length;
+    yield line + '\n';
   }
   if (data.nearby.length)
     yield `여기까지 보셨으면, 가까이에 있는 ${data.nearby[0]}에도 한번 가보세요.\n`;
