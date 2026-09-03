@@ -1106,7 +1106,11 @@ function preview(place) {
 }
 
 const PIN_SM = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 21s7-5.4 7-11a7 7 0 1 0-14 0c0 5.6 7 11 7 11Z"/><circle cx="12" cy="10" r="2.4"/></svg>';
-const GO = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 5.6c0-.72.78-1.16 1.39-.78l8.2 5.18a.92.92 0 0 1 0 1.56l-8.2 5.2c-.61.38-1.39-.06-1.39-.78V5.6Z"/></svg>';
+/* 셀 오른쪽 표시 — 눌러도 소리가 나지 않고 상세로 넘어가므로 재생 모양을 쓰지 않는다.
+   버튼이 아니라 '이 줄은 어딘가로 이어진다'는 표시다. */
+const GO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
+         + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+         + '<path d="m9.5 5.5 6.5 6.5-6.5 6.5"/></svg>';
 
 function cardHTML(place, sub) {
   return `<button class="card" data-place="${place}">
@@ -1869,7 +1873,7 @@ async function runSearch(q) {
   if (!hit) {
     // 위키데이터가 모르는 말이어도 위키백과에는 있을 수 있다
     els.resultTitle.textContent = `'${q}'`;
-    els.resultHero.innerHTML = heroHTML(q, '이 이름으로 들려드릴게요');
+    els.resultHero.innerHTML = heroHTML(q, '이 이름으로 찾아볼게요');
     bindPlaces(els.resultHero);
     return;
   }
@@ -1879,7 +1883,7 @@ async function runSearch(q) {
 
   if (tier === 'landmark') {
     // 장소를 정확히 찾아 친 경우다. 예전의 빠른 길을 그대로 남겨 둔다.
-    els.resultHero.innerHTML = heroHTML(hit.label, hit.desc || '바로 들어보세요');
+    els.resultHero.innerHTML = heroHTML(hit.label, hit.desc || '어떤 곳인지 보기');
     bindPlaces(els.resultHero);
     drawDrills(hit, seq);
     nearbyOf(hit, seq, 6, '이 근처');
