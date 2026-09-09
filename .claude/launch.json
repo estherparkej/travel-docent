@@ -1,11 +1,7 @@
 {
   "version": "0.0.1",
   "configurations": [
-    {
-      "name": "docent",
-      "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "8080", "--directory", "docs"],
-      "port": 8080
-    }
+    { "name": "docent3", "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8081", "--directory", "docs"], "port": 8081 }
   ]
 }
