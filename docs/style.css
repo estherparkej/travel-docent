@@ -322,7 +322,7 @@ main{position:relative;min-height:0;overflow:hidden}
 .ps-mini{display:flex;align-items:center;gap:12px;flex:none;touch-action:none;
   height:var(--ps-mini);padding:0 var(--gap);cursor:pointer;overflow:hidden;
   transition:height .34s cubic-bezier(.32,.72,0,1),opacity .2s ease}
-.psheet:not(.playing) .ps-mini,
+.psheet:not(.mini) .ps-mini,
 .psheet.open .ps-mini{height:0;opacity:0;pointer-events:none}
 .ps-thumb{width:44px;height:44px;border-radius:10px;overflow:hidden;flex:none;
   background:var(--tint2)}
@@ -347,7 +347,7 @@ main{position:relative;min-height:0;overflow:hidden}
   transition:height .34s cubic-bezier(.32,.72,0,1),opacity .2s ease}
 .ps-prog i{display:block;height:100%;width:0;background:var(--acc);
   transition:width .25s linear}
-.psheet:not(.playing) .ps-prog,
+.psheet:not(.mini) .ps-prog,
 .psheet.open .ps-prog{height:0;opacity:0}
 
 /* 펼쳤을 때 나오는 전체 플레이어.
@@ -378,7 +378,7 @@ main{position:relative;min-height:0;overflow:hidden}
   position:relative;flex:none;z-index:2;
   display:grid;grid-template-columns:repeat(5,1fr);
   width:100%;background:none;
-  padding:0 var(--gap)
+  padding:4px var(--gap)
           calc(6px + env(safe-area-inset-bottom) * var(--ps-t, 0));
   transition:padding .5s cubic-bezier(.32,.72,0,1);
 }
@@ -399,8 +399,9 @@ main{position:relative;min-height:0;overflow:hidden}
 .tab{position:relative;z-index:1;background:none}
 .tab.on{color:var(--acc-deep)}
 /* 활성 표시는 탭마다 켜고 끄는 대신, 알약 하나가 미끄러져 옮겨 다닌다 */
-.tabink{position:absolute;top:6px;bottom:6px;left:6px;z-index:0;border-radius:999px;
-  width:calc((100% - 12px) / 5);background:var(--acc-soft);
+/* 탭바의 좌우 여백은 --gap 이다. 알약도 같은 기준을 써야 칸에 맞는다. */
+.tabink{position:absolute;top:4px;bottom:6px;left:var(--gap);z-index:0;border-radius:999px;
+  width:calc((100% - var(--gap) * 2) / 5);background:var(--acc-soft);
   transform:translate3d(0,0,0);opacity:0;
   transition:transform .42s cubic-bezier(.32,.72,0,1),opacity .2s ease}
 .tabink.ready{opacity:1}
@@ -1138,6 +1139,13 @@ input[type=range]:disabled{opacity:.4}
 .pin.cluster i b{font-size:15px;font-weight:800;letter-spacing:-.03em;line-height:1}
 
 /* 고른 곳 카드 — 아래에서 올라온다 */
+/* 카드를 밀면 손을 따라가고, 넘어갈 때 살짝 스쳐 지나간다 */
+.placecard{transition:transform .24s cubic-bezier(.32,.72,0,1),opacity .18s ease}
+.placecard.drag{transition:none}
+.placecard.flip{animation:pcflip .22s ease}
+@keyframes pcflip{0%{opacity:.35;transform:translate3d(0,0,0) scale(.97)}
+                  100%{opacity:1;transform:none}}
+
 .placecard{position:absolute;left:var(--gap);right:var(--gap);z-index:1050;
   bottom:calc(var(--navclear) + 6px);
   transition:transform .34s var(--gentle),opacity .24s ease}

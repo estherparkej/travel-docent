@@ -1506,6 +1506,41 @@ async function renderNearby() {
   await dropPins(at);
 }
 
+/* 보이는 만큼 찾는다.
+   위키 지오서치는 반경 10km가 상한이다. 지도를 줄여 놓으면 화면은
+   사오십 킬로미터인데 가운데 8km만 뒤지게 되어, 멀리 옮겨 누르면
+   화면 가득 비어 보였다. 화면이 넓으면 몇 군데로 나눠 훑는다. */
+const MAX_R = 10000;
+function viewRadius() {
+  if (!mapObj) return 8000;
+  const b = mapObj.getBounds(), c = mapObj.getCenter();
+  return Math.round(metersBetween({ lat: c.lat, lon: c.lng },
+                                  { lat: c.lat, lon: b.getEast() }));
+}
+async function scanView(at) {
+  const vr = viewRadius();
+  const r = Math.min(MAX_R, Math.max(2000, vr));
+  const spots = [[at.lat, at.lon]];
+  if (vr > MAX_R * 1.2) {
+    /* 화면이 넓으면 네 귀퉁이 쪽도 함께. 위도 1도는 약 111km,
+       경도 1도는 위도에 따라 줄어든다. */
+    const d = Math.min(vr * 0.6, MAX_R * 2.4);
+    const dLat = d / 111000;
+    const dLon = d / (111000 * Math.max(0.2, Math.cos(at.lat * Math.PI / 180)));
+    for (const [sy, sx] of [[1, 1], [1, -1], [-1, 1], [-1, -1]])
+      spots.push([at.lat + dLat * sy, at.lon + dLon * sx]);
+  }
+  const lists = await Promise.all(
+    spots.map(([la, lo]) => wiki.nearby(la, lo, r, 60).catch(() => [])));
+  /* 같은 곳이 여러 번 걸린다. 가장 가까운 것 하나만 남긴다. */
+  const seen = new Map();
+  for (const list of lists) for (const x of list) {
+    const was = seen.get(x.title);
+    if (!was || x.dist < was.dist) seen.set(x.title, x);
+  }
+  return [...seen.values()].sort((a, b) => a.dist - b.dist);
+}
+
 async function dropPins(at, { keepView = false } = {}) {
   /* 묶여 있는 핀은 제 마커가 없다(무리 마커 하나가 대신한다).
      그걸 모르고 지우려 들면 여기서 터져, 먼 곳으로 옮겨 다시 찾을 때
@@ -1514,7 +1549,7 @@ async function dropPins(at, { keepView = false } = {}) {
   clusters.forEach(m => m.remove());
   pins = []; clusters = [];
 
-  const raw = await wiki.nearby(at.lat, at.lon, 8000, 60);
+  const raw = await scanView(at);
   const coords = Object.fromEntries(raw.map(x => [x.title, x]));
 
   /* 점수를 다 매기고 나서 꽂으면 5초가 걸린다. 분류를 물어보는 데만 4.8초가 든다.
@@ -1654,6 +1689,60 @@ function pickPin(rec) {
     if (d.image) $('pcThumb').innerHTML = `<img src="${d.image}" alt="">`;
   }).catch(() => {});
 }
+
+/* 카드를 좌우로 밀어 옆 핀으로 옮긴다.
+   순서는 지도에 꽂은 그 순서 — 즉 추천 순이다.
+   거리 35 · 이야깃거리 30 · 인기 20 · 지금 상황 15 로 매긴 점수다.
+   지도에서 가까운 순으로 도는 방법도 있지만, 흩어진 핀에서는
+   다음에 무엇이 올지 짐작이 안 돼 추천 순을 그대로 따랐다. */
+(() => {
+  const card = $('placeCard');
+  let x0 = 0, y0 = 0, dx = 0, on = false, judged = false, live = false;
+  const SLIDE = 56;   // 이만큼 밀면 넘어간다
+
+  const at = () => pins.findIndex(p => p.name === (pickedPin && pickedPin.name));
+  const move = (step) => {
+    if (pins.length < 2) return;
+    const i = at();
+    if (i < 0) return;
+    const next = (i + step + pins.length) % pins.length;
+    card.classList.add('flip');
+    setTimeout(() => card.classList.remove('flip'), 220);
+    pickPin(pins[next]);
+  };
+
+  card.addEventListener('pointerdown', e => {
+    if (e.target.closest('#pcMap')) return;
+    on = true; judged = false; live = false; dx = 0;
+    x0 = e.clientX; y0 = e.clientY;
+  });
+  addEventListener('pointermove', e => {
+    if (!on) return;
+    dx = e.clientX - x0;
+    const dy = e.clientY - y0;
+    if (!judged) {
+      if (Math.abs(dx) < 5 && Math.abs(dy) < 5) return;
+      judged = true;
+      if (Math.abs(dy) > Math.abs(dx)) { on = false; return; }   // 세로면 시트 몫
+      live = true;
+    }
+    if (live) {
+      card.classList.add('drag');
+      /* 끝에서도 계속 도니까 고무줄은 없다. 손을 그대로 따라간다. */
+      card.style.transform = `translate3d(${dx * 0.6}px,0,0)`;
+    }
+  }, { passive: true });
+  const end = () => {
+    if (!on) return;
+    on = false;
+    card.classList.remove('drag');
+    card.style.transform = '';
+    if (!live) return;
+    if (Math.abs(dx) > SLIDE) move(dx < 0 ? 1 : -1);   // 왼쪽으로 밀면 다음
+  };
+  addEventListener('pointerup', end);
+  addEventListener('pointercancel', end);
+})();
 
 /* 지금 보고 있는 자리에서 다시 찾는다 */
 async function researchHere() {
@@ -2593,14 +2682,20 @@ els.play.onclick = togglePlay;
    '나의 찾기'와 같은 구조다. 손잡이·미니 플레이어·탭바가 한 덩어리로
    붙어 있고, 손잡이를 올리면 그 덩어리가 전체 화면으로 펼쳐진다.
    자리는 --ps-y 하나로 정해서, 끄는 동안에도 같은 값만 움직인다. */
-const SHEET = { open: false };
+const SHEET = { open: false, step: 0 };
 
-/* 접힌 키와 펼친 키를 재서, 그 사이를 오간다.
+/* 세 단계로 여닫는다 — 나의 찾기와 같다.
+   0 손잡이만 · 1 미니 플레이어 · 2 전체 플레이어.
    자리를 옮기는 대신 키가 자라야 탭바가 카드 안에서 늘 보인다. */
-function shutH() {
-  const playing = els.sheet.classList.contains('playing') && !SHEET.open;
-  const mini = playing ? els.psMini.offsetHeight + els.psProg.offsetHeight : 0;
-  return els.psGrip.offsetHeight + mini + els.tabbar.offsetHeight;
+function stepH(i) {
+  const tab = els.tabbar.offsetHeight;
+  document.documentElement.style.setProperty('--tabH', tab + 'px');
+  const grip = els.psGrip.offsetHeight;
+  if (i >= 2) return innerHeight - (Math.max(safeTop(), 12) + 8);
+  /* 미니 줄은 접혀 있을 때 높이가 0이라 잴 수 없다. 정해 둔 값을 쓴다. */
+  const mini = parseFloat(getComputedStyle(document.documentElement)
+    .getPropertyValue('--ps-mini')) || 64;
+  return grip + tab + (i >= 1 ? mini + 2 : 0);
 }
 /* 펼쳐도 상태바 자리는 비워 둔다. env() 는 읽을 방법이 없어 한 번 재 둔다. */
 function safeTop() {
@@ -2613,79 +2708,56 @@ function safeTop() {
   }
   return safeTop.px;
 }
-function openH() { return innerHeight - (Math.max(safeTop(), 12) + 8); }
 /* 키와 함께 '얼마나 펼쳐졌나'(--ps-t)도 준다.
    카드의 좌우·아래 여백과 모서리가 그 값을 따라 0 으로 줄어든다. */
 function setH(h, live) {
   els.sheet.classList.toggle('drag', !!live);
-  const lo = shutH(), hi = openH();
+  const lo = stepH(0), hi = stepH(2);
   els.sheet.style.setProperty('--ps-h', h + 'px');
   const t = Math.max(0, Math.min(1, (h - lo) / Math.max(1, hi - lo)));
   els.sheet.style.setProperty('--ps-t', t.toFixed(3));
 }
+/* 어느 단계에 서 있는지에 따라 옷을 갈아입는다 */
+function applyStep() {
+  els.sheet.classList.toggle('mini', SHEET.step >= 1);
+  els.sheet.classList.toggle('open', SHEET.step === 2);
+  SHEET.open = SHEET.step === 2;
+}
+function goStep(i) {
+  SHEET.step = Math.max(0, Math.min(2, i));
+  els.sheet.classList.remove('drag');
+  applyStep();
+  closeScript();
+  fitSheet();
+  if (SHEET.step === 2) paint();
+}
 
-/* 미니 줄이 펴지고 접히는 0.34초 동안 카드가 앉을 키도 계속 바뀐다.
+/* 미니 줄이 펴지고 접히는 동안 카드가 앉을 키도 계속 바뀐다.
    한 번만 재면 펴지기 전 키로 굳어 버리므로, 다 펴질 때까지 따라 잰다. */
 function fitSheet() {
   cancelAnimationFrame(fitSheet.raf);
   const until = performance.now() + 460;
   const tick = () => {
-    /* 손으로 끄는 중엔 비켜 주되, 루프는 살려 둔다 —
-       여기서 그냥 끝내면 손을 뗀 뒤 제자리를 못 찾는다 */
-    if (!els.sheet.classList.contains('drag')) setH(SHEET.open ? openH() : shutH());
+    if (!els.sheet.classList.contains('drag')) setH(stepH(SHEET.step));
     if (performance.now() < until) fitSheet.raf = requestAnimationFrame(tick);
   };
   tick();
 }
 
-function openSheet() {
-  SHEET.open = true;
-  els.sheet.classList.remove('drag');
-  els.sheet.classList.add('open');
-  closeScript();
-  fitSheet();
-  paint();
-}
-function closeSheet() {
-  SHEET.open = false;
-  els.sheet.classList.remove('drag', 'open');
-  closeScript();
-  fitSheet();
-}
-/* 들을 게 있으면 미니 줄이 펴진다. 2뎁스에서는 덩어리째 내려간다. */
+const openSheet  = () => goStep(2);
+const closeSheet = () => goStep(SHEET.step === 2 ? 1 : 0);
+/* 재생이 시작되면 미니 줄까지만 올라온다 */
+const showSheet  = () => goStep(1);
+
+/* 들을 게 없어지면 손잡이만 남기고, 2뎁스에서는 덩어리째 내려간다 */
 function syncSheet() {
   const has = P.lines.length > 0 || state.streaming;
   els.sheet.classList.toggle('playing', has);
   els.sheet.classList.toggle('down', DEEP.has(state.view));
-  if (!has && SHEET.open) { SHEET.open = false; els.sheet.classList.remove('open'); }
+  if (!has && SHEET.step === 2) SHEET.step = 1;
+  applyStep();
   fitSheet();
 }
-/* 재생이 시작되면 미니 줄만 펴진다 — 펼치는 건 손잡이를 끌 때다 */
-function showSheet() {
-  SHEET.open = false;
-  els.sheet.classList.remove('open');
-  els.sheet.classList.add('playing');
-  fitSheet();
-}
-
-/* 읽어 내려가는 동안에는 카드가 살짝 물러나고, 되돌아 올라오면 제 크기로.
-   펼친 상태에서는 건드리지 않는다 — 그때 카드는 화면 그 자체다. */
-(() => {
-  let last = 0, idle = 0;
-  const onScroll = e => {
-    if (SHEET.open) return;
-    const el = e.target === document ? document.scrollingElement : e.target;
-    const now = el.scrollTop ?? scrollY;
-    if (Math.abs(now - last) < 4) return;
-    els.sheet.classList.toggle('shrink', now > last);   // 내려가면 물러나고, 올라오면 돌아온다
-    last = now;
-    clearTimeout(idle);
-    idle = setTimeout(() => els.sheet.classList.remove('shrink'), 900);
-  };
-  for (const el of document.querySelectorAll('.scroller, .transcript'))
-    el.addEventListener('scroll', onScroll, { passive: true });
-  addEventListener('scroll', onScroll, { passive: true });
-})();
 
 els.miniPlay.onclick = e => { e.stopPropagation(); togglePlay(); };
 els.miniPrev.onclick = e => { e.stopPropagation(); playFrom(P.idx - 1); };
@@ -2694,24 +2766,37 @@ els.miniScript.onclick = e => { e.stopPropagation(); openSheet(); openScript(); 
 els.psMini.onclick = () => { if (!SHEET.dragged) openSheet(); };
 els.psMini.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openSheet(); } };
 
-/* 손잡이 끌기 — 위로 올리면 카드가 자라고, 쓸어내리면 줄어든다.
-   손가락을 그대로 따라오다가, 3분의 1을 넘기거나 던지면 그쪽으로 붙는다. */
+/* 손잡이 끌기 — 세 단계 사이를 오간다.
+   손가락을 그대로 따라오다가, 놓으면 가장 가까운 단으로 붙는다.
+   빠르게 던지면 그 방향으로 한 단 더 간다. */
 (() => {
   let y0 = 0, base = 0, dy = 0, t0 = 0, on = false, moved = false;
-  const TAKE = 0.3, FLICK = 0.4;
+  const FLICK = 0.45;   // px/ms
 
+  /* 손잡이는 18px뿐이라 펼친 뒤에는 잡기 어렵다.
+     시트 위쪽 90px 안에서 시작한 세로 끌기를 모두 받는다. */
+  const GRAB = 90;
+  let x0 = 0, judged = false;
   const down = e => {
-    on = true; moved = false; dy = 0; t0 = performance.now();
-    y0 = e.clientY;
-    base = SHEET.open ? openH() : shutH();
-    e.currentTarget.setPointerCapture?.(e.pointerId);
+    if (e.target.closest('.ps-btn, .tab, button, a, input')) return;
+    const top = els.sheet.getBoundingClientRect().top;
+    if (e.clientY - top > GRAB) return;
+    on = true; moved = false; judged = false; dy = 0; t0 = performance.now();
+    y0 = e.clientY; x0 = e.clientX;
+    base = stepH(SHEET.step);
   };
   const move = e => {
     if (!on) return;
     dy = e.clientY - y0;
-    if (!moved && Math.abs(dy) < 4) return;
+    const dx = e.clientX - x0;
+    /* 가로로 먼저 움직였다면 사진을 넘기려는 것이다 */
+    if (!judged) {
+      if (Math.abs(dx) < 4 && Math.abs(dy) < 4) return;
+      judged = true;
+      if (Math.abs(dx) > Math.abs(dy)) { on = false; return; }
+    }
     moved = true;
-    const lo = shutH(), hi = openH();
+    const lo = stepH(0), hi = stepH(2);
     let h = base - dy;                       // 위로 끌면(-dy) 키가 자란다
     if (h < lo) h = lo - (lo - h) * 0.3;     // 끝을 넘어가면 고무줄처럼
     if (h > hi) h = hi + (h - hi) * 0.3;
@@ -2722,16 +2807,22 @@ els.psMini.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preven
     on = false;
     SHEET.dragged = moved;
     setTimeout(() => { SHEET.dragged = false; }, 0);
-    if (!moved) { SHEET.open ? closeSheet() : openSheet(); return; }
-    const lo = shutH(), hi = openH();
+    if (!moved) { goStep(SHEET.step === 2 ? 1 : SHEET.step + 1); return; }
+
+    const h = base - dy;
     const speed = -dy / Math.max(1, performance.now() - t0);   // 위로가 +
-    const goOpen = speed > FLICK ? true
-                 : speed < -FLICK ? false
-                 : (base - dy) > lo + (hi - lo) * TAKE;
-    goOpen ? openSheet() : closeSheet();
+    let next;
+    if (speed > FLICK) next = SHEET.step + 1;                  // 위로 던짐
+    else if (speed < -FLICK) next = SHEET.step - 1;            // 아래로 던짐
+    else {
+      /* 가장 가까운 단으로 */
+      const hs = [stepH(0), stepH(1), stepH(2)];
+      next = hs.reduce((best, v, i) =>
+        Math.abs(v - h) < Math.abs(hs[best] - h) ? i : best, 0);
+    }
+    goStep(next);
   };
-  els.psGrip.addEventListener('pointerdown', down);
-  els.psMini.addEventListener('pointerdown', down);
+  els.sheet.addEventListener('pointerdown', down);
   addEventListener('pointermove', move);
   addEventListener('pointerup', up);
   addEventListener('pointercancel', up);
