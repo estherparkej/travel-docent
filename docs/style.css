@@ -10,7 +10,7 @@
      나란히 놓아도 색이 서로 어긋나지 않는다. */
   --ink:#14181F;
   --dim:#5A6472;
-  --dim2:#8E99AB;
+  --dim2:#7D8796;
   --line:#E6EAF0;
   --line-soft:#EEF1F6;      /* 셀 사이 흐릿한 구분선 */
   --tint:#F3F5F9;
@@ -254,7 +254,7 @@ main{position:relative;min-height:0;overflow:hidden}
 .transcript .err{color:#D93A2B;font-size:var(--fs-sm);line-height:var(--lh-loose);word-break:keep-all;
   background:rgba(255,90,80,.09);border:1px solid rgba(255,90,80,.22);
   border-radius:14px;padding:15px;margin-top:12px}
-.empty{color:var(--dim2);font-size:var(--fs-sm);line-height:var(--lh-loose);padding:32px 0;word-break:keep-all}
+.empty{color:var(--dim);font-size:var(--fs-sm);line-height:var(--lh-loose);padding:32px 0;word-break:keep-all}
 
 .log{list-style:none}
 .log li{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px;
@@ -396,7 +396,8 @@ body.listening{--navclear:calc(var(--navh) + var(--ps-mini) + max(var(--navlift)
 .tab{
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
   padding:7px 2px 6px;border-radius:999px;
-  color:var(--dim2);font-size:var(--fs-2xs);font-weight:600;line-height:1.2;
+  /* 탭 이름은 앱에서 가장 작은 글씨다. 흐린 회색으로 두면 밖에서 안 읽힌다. */
+  color:var(--dim);font-size:var(--fs-2xs);font-weight:600;line-height:1.2;
   transition:color var(--dur) var(--gentle),background var(--dur) var(--gentle),
              transform var(--dur) var(--gentle);
 }
@@ -426,7 +427,7 @@ body.listening{--navclear:calc(var(--navh) + var(--ps-mini) + max(var(--navlift)
 .field:last-of-type{margin-bottom:8px}
 .flabel{display:block;font-size:var(--fs-sm);font-weight:600;color:var(--dim);
   margin-bottom:10px}
-.flabel em{font-style:normal;font-weight:400;color:var(--dim2);margin-left:6px;font-size:var(--fs-xs)}
+.flabel em{font-style:normal;font-weight:400;color:var(--dim);margin-left:6px;font-size:var(--fs-xs)}
 .flabel b{color:var(--acc-deep);font-variant-numeric:tabular-nums}
 
 .seg{position:relative;display:flex;gap:4px;background:var(--tint);padding:4px;border-radius:12px}
@@ -516,11 +517,11 @@ input[type=range]:disabled{opacity:.4}
   background:var(--line)}
 .ghost svg{width:17px;height:17px;color:var(--acc)}
 .ghost:active{background:var(--line)}
-.hint{font-size:var(--fs-xs);line-height:var(--lh-loose);color:var(--dim2);margin-top:11px;
+.hint{font-size:var(--fs-xs);line-height:var(--lh-loose);color:var(--dim);margin-top:11px;
   background:var(--line);border-radius:12px;padding:13px;word-break:keep-all}
 .hint b{color:var(--dim)}
 .hint em{font-style:normal;color:var(--acc-deep);font-weight:700}
-.note{font-size:var(--fs-xs);color:var(--dim2);line-height:var(--lh-loose);word-break:keep-all}
+.note{font-size:var(--fs-xs);color:var(--dim);line-height:var(--lh-loose);word-break:keep-all}
 
 /* ── 화면 크기별 ───────────────────────────────────────── */
 @media (max-height:700px){
@@ -777,7 +778,7 @@ input[type=range]:disabled{opacity:.4}
 .sc-title{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
 .sc-title b{font-size:16px;font-weight:700;color:var(--ink);letter-spacing:0;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.sc-title em{font-style:normal;font-size:13px;color:var(--dim2);
+.sc-title em{font-style:normal;font-size:13px;color:var(--dim);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sc-close{flex:0 0 auto;width:34px;height:34px;color:var(--ink)}
 .sc-close svg{width:21px;height:21px}
@@ -913,7 +914,7 @@ input[type=range]:disabled{opacity:.4}
 
 
 /* ══════════ 구글 보이스 — 듣기와 선택을 나눈다 ══════════ */
-.vrow.pick{grid-template-columns:22px minmax(0,1fr) 36px;cursor:pointer}
+.vrow.pick{grid-template-columns:22px 40px minmax(0,1fr) 36px;cursor:pointer}
 .vcheck{width:22px;height:22px;border-radius:50%;border:2px solid var(--line);
   display:grid;place-items:center;flex:none;
   transition:border-color var(--dur) var(--gentle),background var(--dur) var(--gentle)}
@@ -1047,7 +1048,7 @@ input[type=range]:disabled{opacity:.4}
 
 
 /* 결과 개수 */
-.count{margin-left:8px;font-size:15px;font-weight:600;color:var(--dim2);letter-spacing:0}
+.count{margin-left:8px;font-size:15px;font-weight:600;color:var(--dim);letter-spacing:0}
 
 /* 갈래별 구역 */
 .group{margin-top:26px}
@@ -1336,7 +1337,7 @@ body.listening .pl-body{padding-bottom:230px}
 .pl-sum p{font-size:13.5px;line-height:1.7;color:#2A313C;word-break:keep-all;
   overflow:hidden;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical}
 
-.pl-note{font-size:12px;color:var(--dim2);line-height:1.6;word-break:keep-all;margin-bottom:12px}
+.pl-note{font-size:12px;color:var(--dim);line-height:1.6;word-break:keep-all;margin-bottom:12px}
 .pl-story{font-size:15.5px;line-height:1.72;color:#2A313C;word-break:keep-all;white-space:pre-wrap}
 .pl-story b{font-size:17px;font-weight:700;color:var(--ink);display:block;
   margin-bottom:12px;line-height:1.5;letter-spacing:-.01em}
@@ -1375,6 +1376,9 @@ body.listening .pl-dock{transform:translate3d(0,100%,0);pointer-events:none}
 .vface{width:48px;height:48px;border-radius:50%;overflow:hidden;display:block;
   transition:box-shadow var(--dur) var(--gentle)}
 .vface svg,.vface .vphoto{width:100%;height:100%;display:block;object-fit:cover}
+/* 설정 목록에 서는 작은 얼굴 */
+.vface.sm{width:40px;height:40px}
+.vrow.on .vface.sm{box-shadow:0 0 0 2px #FFF,0 0 0 3px var(--acc)}
 .vpick.on .vface{box-shadow:0 0 0 2px #FFF,0 0 0 4px var(--acc)}
 .vpick b{display:block;width:48px;margin-top:7px;font-size:12px;font-weight:600;
   color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -1382,7 +1386,7 @@ body.listening .pl-dock{transform:translate3d(0,100%,0);pointer-events:none}
 
 .pl-facts{display:grid;gap:1px;background:var(--line);border-radius:14px;overflow:hidden}
 .pl-facts div{display:flex;gap:12px;padding:13px 14px;background:#FFF;font-size:14px}
-.pl-facts dt{flex:0 0 78px;color:var(--dim2)}
+.pl-facts dt{flex:0 0 78px;color:var(--dim)}
 .pl-facts dd{flex:1;color:var(--ink);word-break:keep-all}
 
 .pl-chart{display:flex;align-items:flex-end;gap:5px;height:104px}
@@ -1395,7 +1399,7 @@ body.listening .pl-dock{transform:translate3d(0,100%,0);pointer-events:none}
 @media (prefers-reduced-motion:reduce){
   .pl-chart i{transition:none;transition-delay:0s;height:var(--h)}}
 .pl-chart span.peak i{background:var(--acc)}
-.pl-chart em{font-style:normal;font-size:10px;color:var(--dim2)}
+.pl-chart em{font-style:normal;font-size:10px;color:var(--dim)}
 .pl-chart span.peak em{color:var(--acc);font-weight:700}
 
 .pl-links{display:grid;gap:8px}

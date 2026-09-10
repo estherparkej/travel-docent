@@ -2993,15 +2993,28 @@ function renderGVoices() {
       `<p class="empty">${name} 키를 넣으면 목소리를 고를 수 있어요.</p>`;
     return;
   }
-  // 왼쪽 동그라미로 고르고, 오른쪽 버튼으로 들어본다
+  /* 왼쪽 동그라미로 고르고, 오른쪽 버튼으로 들어본다.
+     얼굴은 플레이어와 같은 것을 쓴다 — 여기서 고르는데 여기만 이름뿐이면
+     어느 목소리를 고른 건지 두 화면이 따로 논다. */
   const picked = voiceOf();
-  els.gvoiceList.innerHTML = gvoices.map(v => `
+  const seen = { m: 0, f: 0 };
+  els.gvoiceList.innerHTML = gvoices.map(v => {
+    const male = /남성|male/i.test(v.desc || '');
+    const i = male ? seen.m++ : seen.f++;
+    return `
     <div class="vrow pick${v.id === picked ? ' on' : ''}" data-v="${v.id}"
          role="radio" aria-checked="${v.id === picked}" tabindex="0">
       <span class="vcheck" aria-hidden="true"><i></i></span>
+      <span class="vface sm" aria-hidden="true">${faceSVG(i, male)}</span>
       <span class="vtext"><b>${v.label}</b><em>${v.desc}</em></span>
       <button class="vplay" data-v="${v.id}" aria-label="${v.label} 들어보기">${ICO_PLAY_SM}</button>
-    </div>`).join('');
+    </div>`;
+  }).join('');
+  [...els.gvoiceList.querySelectorAll('.vrow')].forEach(r => {
+    const face = r.querySelector('.vface');
+    const name = r.querySelector('b').textContent;
+    if (face) swapFace(face, shortVoice(name));
+  });
 }
 
 /* 목록에서 미리듣기 — 누르면 재생, 다시 누르면 멈춤 */
@@ -3701,11 +3714,13 @@ function shortVoice(label) {
 /* 목소리 얼굴 사진 — icons/voices/ 에 파일을 넣으면 그림 대신 쓴다.
    먼저 SVG 를 그려 두고, 사진이 실제로 열렸을 때만 바꿔 끼운다.
    깨진 <img> 를 먼저 붙이면 파일이 없는 동안 빈 칸이 남는다. */
+/* 얼굴 사진이 있는 목소리만 적는다.
+   없는 이름을 적어 두면 매번 404 를 한 번씩 때리고, 그림은 어차피 도형으로 남는다.
+   국민은 아직 어울리는 그림이 없다. */
 const FACE_PIC = {
   '선희': 'sunhi.jpg', '지민': 'jimin.jpg', '서현': 'seohyeon.jpg',
   '순복': 'soonbok.jpg', '유진': 'yujin.jpg',
-  '인준': 'injoon.jpg', '현수': 'hyunsu.jpg',
-  '봉진': 'bongjin.jpg', '국민': 'gookmin.jpg',
+  '인준': 'injoon.jpg', '현수': 'hyunsu.jpg', '봉진': 'bongjin.jpg',
 };
 const picOK = new Map();
 function swapFace(host, name) {
