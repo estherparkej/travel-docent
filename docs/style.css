@@ -275,7 +275,9 @@ main{position:relative;min-height:0;overflow:hidden}
 
 .psheet{
   position:fixed;left:0;right:0;bottom:0;z-index:1098;
-  height:100dvh;
+  /* 전체로 펼쳐도 상태바 자리는 비워 둔다 — 영상도 그 아래에서 멈춘다 */
+  --ps-top:calc(max(env(safe-area-inset-top), 12px) + 8px);
+  height:calc(100dvh - var(--ps-top));
   transform:translate3d(0,var(--ps-y,100dvh),0);
   border-radius:22px 22px 0 0;
   background:rgba(255,255,255,.86);
@@ -291,13 +293,13 @@ main{position:relative;min-height:0;overflow:hidden}
 .psheet.down{transform:translate3d(0,100dvh,0);pointer-events:none}
 
 /* 손잡이 — 끌어서 여닫는 곳. 시트 어디를 잡아도 끌리지만 여기가 표시다. */
-.ps-grip{height:24px;display:grid;place-items:center;flex:none;
+.ps-grip{height:26px;display:grid;place-items:center;flex:none;
   cursor:grab;touch-action:none}
 .ps-grip span{width:36px;height:5px;border-radius:99px;background:rgba(0,0,0,.18)}
 .ps-grip:active{cursor:grabbing}
 
 /* 미니 플레이어 — 재생 중일 때만 탭바 위에 한 줄 */
-.ps-mini{display:flex;align-items:center;gap:12px;flex:none;
+.ps-mini{display:flex;align-items:center;gap:12px;flex:none;touch-action:none;
   height:var(--ps-mini);padding:0 var(--gap);cursor:pointer;overflow:hidden;
   transition:height .34s cubic-bezier(.32,.72,0,1),opacity .2s ease}
 .psheet:not(.playing) .ps-mini,
@@ -330,12 +332,16 @@ main{position:relative;min-height:0;overflow:hidden}
 .psheet.open .ps-prog{height:0;opacity:0}
 
 /* 펼쳤을 때 나오는 전체 플레이어 — 손잡이와 탭바 사이를 채운다 */
-/* 아래쪽 탭바 높이만큼은 가려지므로 그만큼 비워 둔다 */
-.ps-full{flex:1;min-height:0;position:relative;padding-bottom:var(--tabH,64px);
+.ps-full{flex:1;min-height:0;position:relative;
   opacity:0;pointer-events:none;transition:opacity .22s ease}
 .psheet.open .ps-full{opacity:1;pointer-events:auto}
 .psheet.open{background:#FFF;backdrop-filter:none;-webkit-backdrop-filter:none}
-.ps-full #view-player{position:absolute;inset:0;height:100%}
+/* 절대 배치는 안쪽 여백을 무시한다 — 아래를 탭바만큼 띄워야
+   조작 버튼이 탭바 뒤로 숨지 않는다 */
+.ps-full #view-player{position:absolute;left:0;right:0;top:0;
+  bottom:var(--tabH,64px);height:auto}
+/* 시트 안에서는 떠 있는 캡슐 기준의 아래 여백이 필요 없다 */
+.ps-full .lower{padding-bottom:12px}
 .ps-full #view-player.hidden{display:block}
 
 .eq{display:flex;align-items:flex-end;gap:2.5px;height:15px}

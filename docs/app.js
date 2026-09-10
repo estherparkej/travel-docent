@@ -2592,8 +2592,11 @@ function peekY() {
   const playing = els.sheet.classList.contains('playing') && !SHEET.open;
   const mini = playing ? els.psMini.offsetHeight + els.psProg.offsetHeight : 0;
   const shown = els.psGrip.offsetHeight + mini;
+  /* 시트는 상태바 아래에서 시작하므로, 자리는 화면이 아니라
+     시트 자신의 높이에서 재야 어긋나지 않는다. */
   const deep = document.body.classList.contains('deep');
-  return Math.max(0, innerHeight - (deep ? 0 : tab) - shown);
+  const h = els.sheet.offsetHeight || innerHeight;
+  return Math.max(0, h - (deep ? 0 : tab) - shown);
 }
 const setY = (y, live) => {
   els.sheet.classList.toggle('drag', !!live);
@@ -2647,7 +2650,7 @@ els.miniPlay.onclick = e => { e.stopPropagation(); togglePlay(); };
 els.miniPrev.onclick = e => { e.stopPropagation(); playFrom(P.idx - 1); };
 els.miniNext.onclick = e => { e.stopPropagation(); playFrom(P.idx + 1); };
 els.miniScript.onclick = e => { e.stopPropagation(); openSheet(); openScript(); };
-els.psMini.onclick = () => openSheet();
+els.psMini.onclick = () => { if (!SHEET.dragged) openSheet(); };
 els.psMini.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openSheet(); } };
 
 /* 손잡이 끌기 — 위로 올리면 펼쳐지고, 쓸어내리면 접힌다.
@@ -2676,6 +2679,8 @@ els.psMini.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preven
   const up = () => {
     if (!on) return;
     on = false;
+    SHEET.dragged = moved;
+    setTimeout(() => { SHEET.dragged = false; }, 0);
     if (!moved) { SHEET.open ? closeSheet() : openSheet(); return; }
     const span = peekY() || 1;
     const speed = dy / Math.max(1, performance.now() - t0);
@@ -2685,6 +2690,7 @@ els.psMini.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preven
     goOpen ? openSheet() : closeSheet();
   };
   els.psGrip.addEventListener('pointerdown', down);
+  els.psMini.addEventListener('pointerdown', down);
   addEventListener('pointermove', move);
   addEventListener('pointerup', up);
   addEventListener('pointercancel', up);
