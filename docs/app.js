@@ -874,7 +874,7 @@ async function narrate({ again = false } = {}) {
       .catch(() => {});
 
     const len = state.mode === 'summary' ? 'short' : prefs.length;
-    const here = standingHere(data);
+    const here = placeMode(data);
     /* 아이와 함께에서 고른 곳이면 그 학년 눈높이로 읽는다.
        그 밖에는 어른이 듣는 것으로 본다. */
     const kid = kidPlaces.has(state.manual);
@@ -984,12 +984,22 @@ function showError(msg) {
 /* 지금 그 자리에 서 있는가.
    GPS 로 찾은 자리면 당연히 '여기'다.
    검색으로 고른 곳이라도 마침 가까이 있으면 '여기'로 본다. */
-function standingHere(data) {
-  if (!state.manual) return true;              // 위치로 찾은 해설
-  if (!state.pos) return false;                // 위치를 모르면 '이곳은'
+/* 스펙의 세 갈래 — INSIDE · NEARBY · SEARCH.
+   예전에는 참·거짓 두 갈래였고, 2km 떨어진 곳도 '지금 서 계신 곳'이라고 했다.
+   서 있지도 않은 자리를 단정하는 건 스펙이 가장 경계하는 일이다. */
+const INSIDE_M = 300;      // 이 안이면 그 장소 안에 있다고 본다
+const NEARBY_M = 3000;     // 이 안이면 근처
+
+function placeMode(data) {
   const c = data && data.coord;
-  if (!c || c.lat == null) return false;
-  return metersBetween(state.pos, c) < 2000;   // 2km 안이면 서 있는 것으로 본다
+  if (!state.pos || !c || c.lat == null) {
+    // 좌표를 모른다. 위치로 찾아온 해설이면 적어도 근처에는 있다.
+    return state.manual ? 'search' : 'nearby';
+  }
+  const m = metersBetween(state.pos, c);
+  if (m < INSIDE_M) return 'inside';
+  if (m < NEARBY_M) return 'nearby';
+  return 'search';
 }
 
 /* 어디까지 들었는지 기억해 둔다. 홈의 '이어 듣기' 고리에 쓴다. */
@@ -2643,7 +2653,7 @@ function goto(view) {
   if (view === 'search') renderSearch();
   if (view === 'nearby') renderNearby();
   if (window.__plDockCheck) setTimeout(window.__plDockCheck, 60);
-  if (view === 'settings') renderQuota();
+  if (view === 'settings') { renderQuota(); renderScriptMode(); }
 }
 
 document.querySelectorAll('.tab').forEach(b => b.onclick = () => {
@@ -3183,6 +3193,28 @@ function refreshKeyState() {
   setChip(provider());
 }
 
+/* 지금 해설이 도슨트 대본으로 나오는지, 위키백과를 읽고 있는지.
+   플레이어의 작은 칩 하나로는 알아채기 어려웠다. 설정 맨 위에 한 줄로 적는다. */
+const WARN_ICO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M12 8.4v5M12 16.8h.01"/><circle cx="12" cy="12" r="8.6"/></svg>';
+const OK_ICO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m7.6 12.4 3 3 6-6.4"/><circle cx="12" cy="12" r="8.6"/></svg>';
+
+function renderScriptMode() {
+  const el = $('scriptMode');
+  if (!el) return;
+  const ai = provider() === 'gemini';
+  el.classList.remove('hidden');
+  el.classList.toggle('warn', !ai);
+  el.classList.toggle('ok', ai);
+  el.innerHTML = ai
+    ? `<span class="callout-ico">${OK_ICO}</span>
+       <span class="callout-txt"><b>도슨트 대본으로 들려드려요.</b><br>
+       왜 만들었는지, 누가 있었는지, 왜 지금 중요한지 순서로 이야기를 씁니다.</span>`
+    : `<span class="callout-ico">${WARN_ICO}</span>
+       <span class="callout-txt"><b>지금은 위키백과를 그대로 읽어 드리고 있어요.</b><br>
+       Gemini 키를 넣어야 도슨트 대본으로 바뀝니다. 눌러서 넣어 주세요.</span>`;
+  el.onclick = () => openApiSheet();
+}
+
 function openApiSheet() {
   const k = getKeys();
   els.geminiKey.value = k.gemini || '';
@@ -3239,6 +3271,7 @@ els.saveKeys.onclick = () => {
   setKey('eleven', els.elevenKey.value);
   setKey('pexels', els.pexelsKey.value);
   refreshKeyState();
+  renderScriptMode();          // 키를 넣자마자 안내가 따라 바뀐다
   state.fallback = false;
   if (isNet(prefs.engine) && !tts.available(prefs.engine)) { prefs.engine = 'device'; savePrefs(); }
   applyEngine();

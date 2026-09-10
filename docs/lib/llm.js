@@ -29,6 +29,13 @@ export const SYSTEM = `당신은 역사적 랜드마크를 안내하는 AI 역�
 · 놀라운 사실 하나 — 처음엔 반대받았다, 원래 다른 목적이었다, 한 번 사라졌다,
   지금 모습이 원래 모습이 아니다 같은 것. 잡학이 아니라 이야기와 이어져야 합니다.
 · 현재의 의미 — 마지막은 반드시 지금 눈앞의 장소로 돌아옵니다.
+· 장면 — 설명하지 말고 보여 주세요.
+  "당시 공사가 진행되고 있었습니다"가 아니라
+  "수많은 사람이 돌을 옮기고 있었습니다. 그 일은 몇 해 동안 이어집니다."
+  단, 자료에 없는 장면을 사실처럼 지어내지는 마세요.
+· 해석이 갈리는 대목 — 한쪽 의견을 정답처럼 말하지 마세요.
+  널리 알려진 해석을 먼저 말하고, 다른 해석을 덧붙이고,
+  왜 의견이 갈리는지까지 짚어 주세요.
 
 [말투 — 듣는 글입니다]
 · "여러분", "~예요", "~했어요", "~거든요" 처럼 다정한 존댓말.
@@ -43,6 +50,12 @@ export const SYSTEM = `당신은 역사적 랜드마크를 안내하는 AI 역�
 · 이어 주는 말을 자연스럽게 쓰되 같은 말을 반복하지 마세요.
   그런데 · 하지만 · 그렇다면 · 여기서 중요한 점이 있습니다 ·
   이야기는 여기서 끝나지 않습니다 · 그러던 어느 날 · 결국 · 그래서
+
+[과거로 넘어갈 때]
+사실을 갑자기 늘어놓지 말고 시간을 옮겨 주세요.
+"시간을 오백 년쯤 앞으로 돌려 보겠습니다",
+"이곳이 처음 만들어졌을 때를 떠올려 보세요",
+"지금은 사람들이 찾아오지만, 그때 이곳을 찾던 사람은 전혀 달랐습니다".
 
 [숫자]
 연도를 잇달아 늘어놓지 마세요.
@@ -113,16 +126,39 @@ const LEVELS = {
 
 /* 위치 — 스펙의 SEARCH / NEARBY / INSIDE */
 const PLACES = {
-  inside: `듣는 사람이 지금 그 장소에 있습니다.
+  inside: `듣는 사람이 지금 그 장소 안에 있습니다.
 "지금 여러분이 서 계신 이곳은", "이 공간에서는" 처럼 현장을 살려 쓰세요.
 단, 무엇을 보고 있는지는 넘겨짚지 마세요.`,
+  /* 스펙의 NEARBY — 근처이지 안이 아니다.
+     이 자리에서 "지금 서 계신 곳은"이라고 하면 있지도 않은 자리를 단정하게 된다. */
+  nearby: `듣는 사람이 그 장소 근처에 있습니다. 안에 있지는 않습니다.
+"지금 이곳 근처에 계시다면", "잠시 주변을 둘러보세요" 처럼 씁니다.
+"지금 여러분이 서 계신 곳은" 처럼 안에 있다고 단정하지 마세요.
+무엇을 보고 있는지도 넘겨짚지 마세요.`,
   search: `듣는 사람이 그 장소에 있는지 알 수 없습니다. 현장에 있다고 가정하지 마세요.
 "이곳은", "이곳을 찾으면" 처럼 씁니다.
 "지금 보고 계신", "눈앞에 있는" 같은 말은 쓰지 마세요.`,
 };
 
+/* 첫 문장 — 위치 모드에 따라 갈린다. 위키백과 낭독도 같은 규칙을 쓴다. */
+export function openLine(place, where) {
+  if (where === 'inside') return `여러분, 지금 여러분이 서 계신 곳은 ${place}입니다.\n`;
+  // '경복궁가'가 아니라 '경복궁이' — 받침을 보고 조사를 고른다
+  if (where === 'nearby') {
+    const last = place.trim().slice(-1);
+    const code = last.charCodeAt(0) - 0xAC00;
+    const josa = (code >= 0 && code < 11172 && code % 28 !== 0) ? '이' : '가';
+    return `여러분이 계신 곳 가까이에 ${place}${josa} 있습니다.\n`;
+  }
+  return `이곳은 ${place}입니다.\n`;
+}
+
+/* 예전에는 참·거짓 두 갈래였다. 남아 있는 호출을 위해 받아 준다. */
+const asWhere = v => (v === true ? 'inside' : v === false ? 'search' : (v || 'search'));
+
 export function buildPrompt(data, length = 'normal', heard = [], again = false,
                             here = true, tone = '', level = '') {
+  const where = asWhere(here);
   const L = LENGTHS[length] || LENGTHS.normal;
   const lines = [];
 
@@ -145,13 +181,11 @@ export function buildPrompt(data, length = 'normal', heard = [], again = false,
 
   lines.push(`\n[듣는 사람] ${LEVELS[level] || LEVELS.adult}`);
   if (tone) lines.push(tone);
-  lines.push(`\n[위치] ${here ? PLACES.inside : PLACES.search}`);
+  lines.push(`\n[위치] ${PLACES[where] || PLACES.search}`);
 
-  /* 지금 그 자리에 서 있는 사람과, 집에서 찾아 듣는 사람에게
+  /* 그 자리에 서 있는 사람, 근처에 있는 사람, 집에서 찾아 듣는 사람에게
      같은 말로 시작하면 어색하다. 첫 문장을 갈라 준다. */
-  lines.push(here
-    ? `[첫 문장] "여러분, 지금 여러분이 서 계신 곳은 ${data.place}입니다."`
-    : `[첫 문장] "이곳은 ${data.place}입니다."`);
+  lines.push(`[첫 문장] "${openLine(data.place, where).trim()}"`);
   lines.push('이 문장으로 시작한 뒤, 바로 훅을 던지세요.');
 
   const h = (heard || []).filter(Boolean);
@@ -210,8 +244,17 @@ function pastToPolite(text) {
 /* 백과사전 상투구 — 소리로 들으면 특히 거슬린다.
    '사적 제12호로, 대한민국 충청남도 …에 소재하고 있는' 은 아무것도 남기지 않는다. */
 const CLICHE = [
-  [/[가-힣]{1,4}\s*제\s*\d+\s*호(?:로|이며|이고|로서),?\s*/g, ''],
-  [/(?:대한민국|한국)\s+(?=[가-힣]{2,}(?:도|시|군|구)\s)/g, ''],
+  /* '국보 제20호로 지정된 이 탑은' → '이 탑은'.
+     '지정된'까지 함께 떼지 않으면 동사만 덩그러니 남아 문장이 부서진다. */
+  [/[가-힣]{1,4}\s*제\s*\d+\s*호(?:로|으로)\s*지정(?:된|되어|되었으며)\s*/g, ''],
+  /* '보물 제12호이며,' 처럼 서술어에 붙은 꼴도 함께 뗀다.
+     이 규칙은 반드시 말투를 고치기 전에 돌아야 한다 — '이며,'가 '이에요.'로
+     바뀐 뒤에는 더 이상 걸리지 않아 지정 번호가 그대로 읽힌다. */
+  [/[가-힣]{1,4}\s*제\s*\d+\s*호(?:로|이며|이고|로서|이다|입니다),?\s*/g, ''],
+  /* 번호를 떼고 나면 '1963년 대한민국의 지정되었다'처럼 임자말만 덩그러니 남는다.
+     뒤가 바로 서술어면 그 임자말도 함께 뗀다. */
+  [/([가-힣]+)의\s+(?=지정|등록|승격|편입|해제)/g, ''],
+  [/(?:대한민국|한국)(?:의)?\s+(?=[가-힣]{2,}(?:도|시|군|구)\s)/g, ''],
   [/에\s*(?:소재|위치)하고\s*있는/g, '에 있는'],
   [/에\s*(?:소재|위치)한/g, '에 있는'],
 ];
@@ -223,8 +266,9 @@ const dropParens = t => t.replace(/\s*\(([^)]*)\)/g, (m, inner) =>
 
 export function soften(text) {
   text = dropParens(text);
-  for (const [a, b] of SOFTEN) text = text.split(a).join(b);
+  // 상투구를 먼저 떼어야 한다. 말투를 고친 뒤에는 꼬리가 달라져 걸리지 않는다.
   for (const [rx, rep] of CLICHE) text = text.replace(rx, rep);
+  for (const [a, b] of SOFTEN) text = text.split(a).join(b);
   text = pastToPolite(text);
   for (const [rx, rep] of UNITS) text = text.replace(rx, rep);
   text = fixYeyo(text);   // 'm'을 '미터'로 바꾼 뒤라야 받침을 알 수 있다
@@ -243,22 +287,25 @@ function boring(s) {
 }
 
 function* streamWiki(data, length, here = true) {
+  const where = asWhere(here);
   if (!data.sources.length) {
     yield '이 근처에서는 소개할 만한 자료를 찾지 못했어요. 조금 더 걸어가 보시겠어요?\n';
     return;
   }
   const src = data.sources[0];
-  let body = src.text.replace(/^==+.*?==+$/gm, '').replace(/\n{2,}/g, '\n').trim();
-  body = soften(body);
-  const cap = { short: 320, normal: 950, deep: 2000 }[length] ?? 950;
+  const body = src.text.replace(/^==+.*?==+$/gm, '').replace(/\n{2,}/g, '\n').trim();
+  const cap = { short: 320, normal: 1400, deep: 1800 }[length] ?? 1400;
 
-  yield here
-    ? `여러분, 지금 여러분이 서 계신 곳은 ${src.title}입니다.\n`
-    : `이곳은 ${src.title}입니다.\n`;
+  yield openLine(src.title, where);
   let used = 0;
   let first = true;
-  for (const sent of body.split(/(?<=[.!?])\s+/).map(x => x.trim()).filter(Boolean)) {
-    if (boring(sent)) continue;
+  /* 걸러내기는 원문을 보고 한다.
+     말투부터 고치면 '사적 제3호로 지정되었다'가 '대한민국의 지정됐어요'가 된 뒤라
+     걸러낼 실마리가 사라지고, 부서진 문장이 그대로 읽힌다. */
+  for (const raw of body.split(/(?<=[.!?])\s+/).map(x => x.trim()).filter(Boolean)) {
+    if (boring(raw)) continue;
+    const sent = soften(raw).trim();
+    if (!sent || sent.length < 6) continue;
     /* 방금 이름을 말했는데 본문이 또 '○○은 …'으로 시작하면 겹친다.
        뜻은 남기고 주어만 덜어낸다. */
     let line = sent;
@@ -313,7 +360,9 @@ async function* geminiOnce(model, key, prompt) {
     body: JSON.stringify({
       systemInstruction: { parts: [{ text: SYSTEM }] },
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.9, maxOutputTokens: 2048,
+      /* 2048 토큰은 한국어로 이천 자 남짓이다. NORMAL 의 위쪽(2,500자)에서 이미
+         빠듯하고 DEEP(3,000~5,000자)은 반드시 중간에 끊긴다. */
+      generationConfig: { temperature: 0.9, maxOutputTokens: 8192,
         thinkingConfig: { thinkingLevel: 'low' } },
     }),
   });

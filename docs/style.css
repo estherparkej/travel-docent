@@ -451,6 +451,10 @@ body.listening{--navclear:calc(var(--navh) + var(--ps-mini) + max(var(--navlift)
 .callout-ico svg{width:20px;height:20px}
 .callout-txt{font-size:var(--fs-xs);line-height:var(--lh-loose);word-break:keep-all}
 .callout-txt b{font-weight:700}
+/* 해설을 무엇으로 쓰고 있는지 — 누르면 키 넣는 곳으로 간다 */
+.callout.warn{width:100%;text-align:left;cursor:pointer;font:inherit}
+.callout.ok{background:var(--tint);border-color:var(--line);color:var(--dim)}
+.callout.ok .callout-ico{color:var(--acc-deep)}
 
 .acc-head{display:flex;align-items:center;justify-content:space-between;width:100%;padding:2px 0}
 .acc-head .flabel{margin-bottom:0}
