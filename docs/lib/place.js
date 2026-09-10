@@ -6,11 +6,24 @@
    앱 주소로 먼저 가 보고, 잠시 뒤에도 화면이 그대로면 웹으로 넘긴다. */
 /* 각 앱의 상징색과 머리글자로 동그란 표를 만든다.
    실제 앱 로고는 상표라 앱 안에 넣지 않았다. 색과 글자만으로도 알아볼 수 있다. */
+/* 지도 앱 표시 — 실제 로고는 상표라 쓰지 못한다.
+   각 서비스의 색에, 그 앱이 하는 일을 나타내는 그림을 얹었다. */
+const PIN  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" '
+           + 'stroke-linecap="round" stroke-linejoin="round">'
+           + '<path d="M12 21c-4.4-4.6-6.6-8-6.6-10.4a6.6 6.6 0 1 1 13.2 0C18.6 13 16.4 16.4 12 21Z"/>'
+           + '<circle cx="12" cy="10.4" r="2.4"/></svg>';
+const NAV  = '<svg viewBox="0 0 24 24" fill="currentColor">'
+           + '<path d="M19.4 4.9 5.3 10.6c-1 .4-.9 1.9.2 2.1l5.4 1.2 1.2 5.4c.2 1.1 1.7 1.2 2.1.2'
+           + 'l5.7-14.1c.3-.8-.5-1.6-1.3-1.3Z"/></svg>';
+const CHAT = '<svg viewBox="0 0 24 24" fill="currentColor">'
+           + '<path d="M12 4.6c-4.4 0-8 2.7-8 6.1 0 2.2 1.5 4.1 3.7 5.2l-.8 3c-.1.4.3.7.7.5l3.5-2.2'
+           + 'c.3 0 .6.1.9.1 4.4 0 8-2.7 8-6.1s-3.6-6.6-8-6.6Z"/></svg>';
+
 export const ROUTE_APPS = [
-  { id: 'naver',  name: '네이버', mark: 'N', color: '#03C75A' },
-  { id: 'tmap',   name: '티맵',   mark: 'T', color: '#0F4CFF' },
-  { id: 'kakao',  name: '카카오', mark: 'K', color: '#FFE300', ink: '#2B1A17' },
-  { id: 'google', name: '구글',   mark: 'G', color: '#4285F4' },
+  { id: 'naver',  name: '네이버 지도', mark: PIN,  color: '#03C75A' },
+  { id: 'tmap',   name: '티맵',        mark: NAV,  color: '#0F4CFF' },
+  { id: 'kakao',  name: '카카오맵',    mark: CHAT, color: '#FFE300', ink: '#2B1A17' },
+  { id: 'google', name: '구글 지도',   mark: PIN,  color: '#4285F4' },
 ];
 
 function urls(app, from, to, name) {

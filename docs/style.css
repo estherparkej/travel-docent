@@ -1413,4 +1413,6 @@ body.listening .pl-dock{transform:translate3d(0,100%,0);pointer-events:none}
 .appbtn i{display:grid;place-items:center;width:56px;height:56px;margin:0 auto 8px;
   border-radius:50%;font-style:normal;font-size:20px;font-weight:800;color:#FFF;
   letter-spacing:-.05em;box-shadow:0 2px 8px rgba(0,0,0,.14)}
-.appbtn b{display:block;font-size:12px;font-weight:600;color:var(--dim)}
+.appbtn i svg{width:26px;height:26px}
+.appbtn b{display:block;font-size:12px;font-weight:600;color:var(--dim);
+  word-break:keep-all;line-height:1.35}
