@@ -272,7 +272,7 @@ main{position:relative;min-height:0;overflow:hidden}
    영상과 같은 구조 — 손잡이·미니 플레이어·탭바가 든 플로팅 카드다.
    접히면 좌우·아래에 여백을 두고 떠 있고, 손잡이를 올리면
    그 여백이 0 으로 줄며 화면을 꽉 채운다. --ps-t 가 그 진행도(0~1). */
-:root{ --ps-mini:64px; --ps-grip:26px; }
+:root{ --ps-mini:64px; --ps-grip:18px; }
 
 .psheet{
   --ps-t:0;                                  /* 0 접힘 · 1 펼침 */
@@ -378,7 +378,7 @@ main{position:relative;min-height:0;overflow:hidden}
   position:relative;flex:none;z-index:2;
   display:grid;grid-template-columns:repeat(5,1fr);
   width:100%;background:none;
-  padding:6px var(--gap)
+  padding:0 var(--gap)
           calc(6px + env(safe-area-inset-bottom) * var(--ps-t, 0));
   transition:padding .5s cubic-bezier(.32,.72,0,1);
 }

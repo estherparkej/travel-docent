@@ -853,10 +853,14 @@ async function narrate({ again = false } = {}) {
 
     const len = state.mode === 'summary' ? 'short' : prefs.length;
     const here = standingHere(data);
-    /* 아이와 함께에서 고른 곳이면 그 학년에 맞춘 말로 읽는다 */
-    const tone = kidPlaces.has(state.manual)
-      ? (KIDS[prefs.kidGrade || 'elementary'] || KIDS.elementary).tone : '';
-    for await (const text of llm.stream(data, { length: len, heard: state.heard, again, here, tone })) {
+    /* 아이와 함께에서 고른 곳이면 그 학년 눈높이로 읽는다.
+       그 밖에는 어른이 듣는 것으로 본다. */
+    const kid = kidPlaces.has(state.manual);
+    const grade = prefs.kidGrade || 'elementary';
+    const level = kid ? ({ elementary: 'elementary', middle: 'middle', high: 'high' }[grade] || 'elementary')
+                      : 'adult';
+    const tone = kid ? (KIDS[grade] || KIDS.elementary).tone : '';
+    for await (const text of llm.stream(data, { length: len, heard: state.heard, again, here, tone, level })) {
       got = true;
       buf += text;
       const { sentences, rest } = drainSentences(buf);
