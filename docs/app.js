@@ -158,7 +158,7 @@ const state = {
   pos: null, place: '', address: '', image: '',
   geocodedAt: null, narratedAt: null,
   heard: JSON.parse(localStorage.getItem('heard') || '[]'),
-  streaming: false, unlocked: false, resolved: '', view: 'player', scriptOpen: false,
+  streaming: false, unlocked: false, resolved: '', view: '', scriptOpen: false,
   manual: '',   // 검색이나 카드로 고른 장소
   mode: 'full',  // full | summary
   fallback: false, quotaAt: +(localStorage.getItem('quota-at') || 0),
@@ -2602,12 +2602,6 @@ function goto(view) {
 }
 
 document.querySelectorAll('.tab').forEach(b => b.onclick = () => {
-  /* 플레이어는 이제 화면이 아니라 시트다 — 탭을 누르면 시트를 펼친다 */
-  if (b.dataset.view === 'player') {
-    if (P.lines.length || state.streaming) openSheet();
-    else notify('먼저 들을 곳을 골라 주세요.');
-    return;
-  }
   // 탭으로 들어온 검색에는 뒤로 갈 곳이 없다
   if (b.dataset.view === 'search') { cameFrom = ''; els.searchBack.classList.add('hidden'); }
   goto(b.dataset.view);
