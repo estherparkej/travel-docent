@@ -2067,6 +2067,7 @@ function drawChips(host, box, list) {
   if (!list.length) { host.innerHTML = ''; box.classList.add('hidden'); return; }
   host.innerHTML = list.map(x => `<button class="rchip" data-go="${x.name}">${x.name}</button>`).join('');
   [...host.children].forEach(b => {
+    swapFace(b.querySelector('.vface'), b.querySelector('b').textContent);
     b.onclick = () => {
       els.searchInput.value = b.dataset.go;
       $('view-search').scrollTo({ top: 0, behavior: 'smooth' });
@@ -3656,6 +3657,30 @@ function shortVoice(label) {
   return t.split(/[\s·]/)[0] || t;
 }
 
+/* 목소리 얼굴 사진 — icons/voices/ 에 파일을 넣으면 그림 대신 쓴다.
+   먼저 SVG 를 그려 두고, 사진이 실제로 열렸을 때만 바꿔 끼운다.
+   깨진 <img> 를 먼저 붙이면 파일이 없는 동안 빈 칸이 남는다. */
+const FACE_PIC = {
+  '선희': 'sunhi.jpg', '지민': 'jimin.jpg', '서현': 'seohyeon.jpg',
+  '순복': 'soonbok.jpg', '유진': 'yujin.jpg',
+  '인준': 'injoon.jpg', '현수': 'hyunsu.jpg',
+  '봉진': 'bongjin.jpg', '국민': 'gookmin.jpg',
+};
+const picOK = new Map();
+function swapFace(host, name) {
+  const file = FACE_PIC[name];
+  if (!file) return;
+  const url = `./icons/voices/${file}`;
+  if (picOK.get(url) === false) return;
+  const img = new Image();
+  img.onload = () => {
+    picOK.set(url, true);
+    if (host.isConnected) host.innerHTML = `<img class="vphoto" src="${url}" alt="">`;
+  };
+  img.onerror = () => picOK.set(url, false);
+  img.src = url;
+}
+
 function drawVoicePicks() {
   const host = $('plVoices');
   /* 인터넷 보이스가 없으면 이 기기의 목소리를 보여준다.
@@ -3680,6 +3705,7 @@ function drawVoicePicks() {
       <b>${shortVoice(v.label)}</b></button>`;
   }).join('');
   [...host.children].forEach(b => {
+    swapFace(b.querySelector('.vface'), b.querySelector('b').textContent);
     b.onclick = () => {
       /* 표시는 useVoice 안에서 목록을 다시 그리며 붙는다.
          여기서 또 건드리면 이미 사라진 노드를 만지게 된다. */
@@ -3689,14 +3715,27 @@ function drawVoicePicks() {
 }
 
 /* 다른 사람들의 기록 — 검색 서비스 열쇠가 없어 결과로 이어 준다 */
-const OUT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M8.5 6h9.5v9.5M18 6 6 18"/></svg>';
+const OUT = '<svg class="out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M8.5 6h9.5v9.5M18 6 6 18"/></svg>';
+/* 다녀온 사람들 — 각 서비스의 표시를 앞에 두어 한눈에 갈린다.
+   실제 로고는 상표라 쓰지 못하고, 그 서비스의 색과 글자로 대신한다. */
+const POST_MARK = {
+  naver: '<i class="ico" style="background:#03C75A;color:#FFF;font-weight:800;font-size:14px">N</i>',
+  insta: '<i class="ico" style="background:linear-gradient(45deg,#F9CE34,#EE2A7B 55%,#6228D7);color:#FFF">'
+       + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">'
+       + '<rect x="5" y="5" width="14" height="14" rx="4.4"/><circle cx="12" cy="12" r="3.2"/>'
+       + '<circle cx="16.6" cy="7.4" r="1" fill="currentColor" stroke="none"/></svg></i>',
+  youtube: '<i class="ico" style="background:#FF0033;color:#FFF">'
+       + '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 8.6v6.8l5.6-3.4L10 8.6Z"/></svg></i>',
+};
 function drawPostLinks(name) {
   const q = encodeURIComponent(name + ' 여행');
+  const tag = encodeURIComponent(name.replace(/\s/g, ''));
   $('plPosts').innerHTML = [
-    ['네이버 블로그', `https://search.naver.com/search.naver?where=blog&query=${q}`],
-    ['인스타그램', `https://www.instagram.com/explore/tags/${encodeURIComponent(name.replace(/\s/g, ''))}/`],
-    ['유튜브', `https://www.youtube.com/results?search_query=${q}`],
-  ].map(([t, u]) => `<a href="${u}" target="_blank" rel="noopener">${t}${OUT}</a>`).join('');
+    ['naver', '네이버 블로그', `https://search.naver.com/search.naver?where=blog&query=${q}`],
+    ['insta', '인스타그램', `https://www.instagram.com/explore/tags/${tag}/`],
+    ['youtube', '유튜브', `https://www.youtube.com/results?search_query=${q}`],
+  ].map(([k, t, u]) =>
+    `<a href="${u}" target="_blank" rel="noopener">${POST_MARK[k]}<b>${t}</b>${OUT}</a>`).join('');
 }
 
 /* 찜 · 공유 */

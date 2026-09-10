@@ -818,28 +818,31 @@ input[type=range]:disabled{opacity:.4}
   background:var(--acc);opacity:0;transition:opacity var(--dur) var(--gentle)}
 .apidot.on{opacity:1}
 
-.sheet{position:fixed;inset:0;z-index:1200;background:rgba(20,20,20,.42);
+/* 시트도 바닥에 붙지 않고 떠 있다 — 재생 카드와 같은 결이다 */
+.sheet{position:fixed;inset:0;z-index:1200;background:rgba(16,20,28,.42);
   display:flex;align-items:flex-end;justify-content:center;
+  padding:0 9px 9px;
   animation:fade var(--dur) var(--gentle)}
 .sheet-inner{
   width:100%;max-width:var(--maxw);max-height:86dvh;
   display:flex;flex-direction:column;overflow:hidden;
-  background:#FFF;border-radius:22px 22px 0 0;
+  background:#FFF;border-radius:24px;
+  box-shadow:0 12px 40px -10px rgba(16,20,28,.3);
   animation:up .34s var(--gentle);
 }
 .sheet-inner.drag{animation:none;transition:none}
 .sheet-inner.snapback{transition:transform var(--dur) var(--gentle)}
-.sheet-head{flex:none;background:#FFF;padding:10px var(--gap) 0;
+.sheet-head{flex:none;background:#FFF;padding:12px 24px 0;
   cursor:grab;touch-action:none}
 .grab{width:36px;height:4px;border-radius:4px;background:#E2E2E6;margin:0 auto}
 .sheet-title{display:flex;align-items:center;justify-content:space-between;
-  height:52px;margin-top:6px}
+  height:auto;margin-top:16px}
 .sheet-title strong{font-size:var(--fs-lg);font-weight:700}
 .sheet-body{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;
-  padding:12px var(--gap) calc(28px + var(--safe-b));
+  padding:16px 24px calc(24px + var(--safe-b));
   scrollbar-width:none}
 .sheet-body::-webkit-scrollbar{display:none}
-.sheet-body .field{margin-bottom:22px}
+.sheet-body .field{margin-bottom:24px}
 
 /* 넉넉한 입력 필드 */
 .bigfield{
@@ -1278,16 +1281,20 @@ body.deep .pl-dock{padding-bottom:calc(var(--safe-b) + 14px)}
 .pl-body{position:relative;padding-bottom:170px}
 body.listening .pl-body{padding-bottom:230px}
 /* 각 덩어리는 흰 종이. 사이의 옅은 회색 띠가 구분을 대신한다. */
-.pl-sec{background:#FFF;padding:22px var(--gap);margin-bottom:12px}
-.pl-head{background:#FFF;padding:8px var(--gap) 20px;margin-bottom:12px}
-.pl-sec h2{font-size:18px;font-weight:700;letter-spacing:-.025em;margin-bottom:14px}
+.pl-sec{background:#FFF;padding:24px var(--gap);margin-bottom:8px}
+/* 여백은 8을 기준으로 8 · 16 · 24 만 쓴다. 애매한 값이 섞이면
+   줄과 줄 사이가 제각각이라 정돈돼 보이지 않는다. */
+.pl-head{background:#FFF;padding:16px var(--gap) 24px;margin-bottom:8px}
+.pl-sec h2{font-size:18px;font-weight:700;letter-spacing:-.025em;margin-bottom:16px}
 .pl-sec:last-of-type{margin-bottom:0}
 
-.pl-kind{display:inline-block;font-size:12px;font-weight:700;letter-spacing:.02em;
-  color:var(--acc);background:rgba(0,123,255,.1);padding:5px 10px;border-radius:999px}
+/* 종류는 제목을 읽은 뒤에 오는 곁말이다 — 제목 아래에 둔다 */
+.pl-kind{display:inline-block;margin:8px 0 0;font-size:12px;font-weight:700;
+  letter-spacing:.02em;color:var(--acc-deep);background:var(--acc-soft);
+  padding:4px 10px;border-radius:999px}
 .pl-head h1{font-size:clamp(25px,7vw,29px);font-weight:700;letter-spacing:-.03em;
-  margin:10px 0 10px;word-break:keep-all;line-height:1.3}
-.pl-where{display:flex;align-items:center;flex-wrap:nowrap;gap:12px;
+  margin:0;word-break:keep-all;line-height:1.3}
+.pl-where{display:flex;align-items:center;flex-wrap:nowrap;gap:16px;margin-top:16px;
   font-size:14px;color:var(--dim);line-height:1.5}
 .pl-pin{width:15px;height:15px;float:left;margin:4px 6px 0 0;color:var(--dim2)}
 .pl-dot b{color:var(--ink);font-weight:600}
@@ -1295,15 +1302,15 @@ body.listening .pl-body{padding-bottom:230px}
 /* 핀은 글줄 안에 띄워 둔다 — flex 자식으로 두면 주소가 통째로 다음 줄로 밀린다 */
 .pl-loc{min-width:0;flex:1 1 auto;word-break:keep-all}
 /* 주소가 길어도 길안내는 첫 줄 오른쪽에 그대로 있는다 */
-.pl-route{display:inline-flex;align-items:center;gap:5px;flex:0 0 auto;
-  padding:8px 13px;border:0;border-radius:999px;cursor:pointer;
+.pl-route{display:inline-flex;align-items:center;gap:6px;flex:0 0 auto;
+  padding:8px 14px;border:0;border-radius:999px;cursor:pointer;
   background:var(--tint);color:var(--acc-deep);font-size:13px;font-weight:700;
   transition:background var(--dur) var(--gentle),transform var(--dur) var(--gentle)}
 .pl-route svg{width:15px;height:15px}
 .pl-route:active{transform:scale(.95);background:var(--tint2)}
 
 /* AI 요약 — 회색 상자 하나에 다 담는다 */
-.pl-sum{background:var(--tint);border-radius:18px;padding:18px}
+.pl-sum{background:var(--tint);border-radius:16px;padding:16px}
 .ai-badge{display:inline-flex;align-items:center;gap:5px;margin-bottom:9px;
   font-size:11px;font-weight:800;letter-spacing:.01em;color:var(--acc)}
 .ai-badge svg{width:14px;height:14px}
@@ -1348,7 +1355,7 @@ body.listening .pl-dock{transform:translate3d(0,100%,0);pointer-events:none}
 .vpick:active{transform:scale(.94)}
 .vface{width:48px;height:48px;border-radius:50%;overflow:hidden;display:block;
   transition:box-shadow var(--dur) var(--gentle)}
-.vface svg{width:100%;height:100%;display:block}
+.vface svg,.vface .vphoto{width:100%;height:100%;display:block;object-fit:cover}
 .vpick.on .vface{box-shadow:0 0 0 2px #FFF,0 0 0 4px var(--acc)}
 .vpick b{display:block;width:48px;margin-top:7px;font-size:12px;font-weight:600;
   color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -1373,21 +1380,26 @@ body.listening .pl-dock{transform:translate3d(0,100%,0);pointer-events:none}
 .pl-chart span.peak em{color:var(--acc);font-weight:700}
 
 .pl-links{display:grid;gap:8px}
-.pl-links a{display:flex;align-items:center;justify-content:space-between;gap:10px;
-  padding:15px 16px;border-radius:14px;background:var(--tint);
+.pl-links a{display:flex;align-items:center;gap:12px;
+  padding:16px;border-radius:16px;background:var(--tint);
   color:var(--ink);font-size:15px;font-weight:600;text-decoration:none;
   transition:background var(--dur) var(--gentle),transform var(--dur) var(--gentle)}
 .pl-links a:active{transform:scale(.985);background:var(--tint2)}
-.pl-links svg{width:17px;height:17px;color:var(--dim2);flex:0 0 auto}
+.pl-links b{flex:1;min-width:0;font-weight:600}
+/* 맨 앞에 그 서비스의 표시. 이름만 늘어놓는 것보다 눈이 먼저 붙는다. */
+.pl-links i.ico{width:24px;height:24px;flex:0 0 auto;border-radius:7px;
+  display:grid;place-items:center;font-style:normal}
+.pl-links i.ico svg{width:24px;height:24px}
+.pl-links .out{width:16px;height:16px;color:var(--dim2);flex:0 0 auto}
 
 /* 길안내 — 뒤를 가리지 않는 시트. 손잡이를 끌어 여닫는다. */
 .sheet.nomodal{background:transparent;pointer-events:none}
-.sheet.nomodal .sheet-inner{pointer-events:auto;box-shadow:0 -8px 32px -12px rgba(0,0,0,.28)}
-.approw{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:4px 0 10px}
+.sheet.nomodal .sheet-inner{pointer-events:auto;box-shadow:0 12px 40px -10px rgba(16,20,28,.3)}
+.approw{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:0}
 .appbtn{border:0;background:none;padding:8px 4px;cursor:pointer;text-align:center;
   border-radius:14px;transition:background var(--dur) var(--gentle),transform var(--dur) var(--gentle)}
 .appbtn:active{transform:scale(.94);background:var(--tint)}
-.appbtn i{display:grid;place-items:center;width:54px;height:54px;margin:0 auto 8px;
+.appbtn i{display:grid;place-items:center;width:56px;height:56px;margin:0 auto 8px;
   border-radius:50%;font-style:normal;font-size:20px;font-weight:800;color:#FFF;
   letter-spacing:-.05em;box-shadow:0 2px 8px rgba(0,0,0,.14)}
 .appbtn b{display:block;font-size:12px;font-weight:600;color:var(--dim)}
