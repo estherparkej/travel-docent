@@ -400,6 +400,18 @@ function voiceOf(engine = prefs.engine) {
   if (engine === 'google') return prefs.gvoice;
   return (prefs.netVoice || {})[engine] || '';
 }
+/* 듣는 도중에 목소리를 바꾸면 그 문장부터 새 목소리로 이어 읽는다.
+   소리는 이미 만들어 둔 것을 쓰므로, 바꾸기만 해서는 하던 목소리가
+   끝까지 간다. 지금 문장을 다시 걸어야 바뀐 게 들린다. */
+function useVoice(id, { net = true } = {}) {
+  if (net) setVoiceOf(id);
+  else { els.voiceSel.value = id; prefs.voice = id; els.voiceNow.textContent = id; }
+  savePrefs();
+  markVoiceButtons();
+  drawVoicePicks();
+  if (P.playing && !P.paused && P.lines.length) playFrom(P.idx);
+}
+
 function setVoiceOf(id, engine = prefs.engine) {
   if (engine === 'google') { prefs.gvoice = id; return; }
   prefs.netVoice = { ...(prefs.netVoice || {}), [engine]: id };
@@ -3047,9 +3059,7 @@ els.gvoiceList.onclick = e => {
   if (play) { playVoiceSample(play.dataset.v, false); return; }   // 들어보기만
   const row = e.target.closest('.vrow');
   if (!row) return;
-  setVoiceOf(row.dataset.v);                                      // 이 보이스로 정한다
-  savePrefs();
-  markVoiceButtons();
+  useVoice(row.dataset.v);                                        // 이 보이스로 정한다
 };
 
 setTimeout(() => warmNearby(state.pos || SEOUL), 1200);   // 켜고 잠시 뒤 조용히
@@ -3321,53 +3331,101 @@ function faceSVG(i, male) {
   const u = `v${male ? 'm' : 'f'}${i}`;
   return `<svg viewBox="0 0 100 100" aria-hidden="true">
   <defs>
-    <radialGradient id="bg${u}" cx="34%" cy="18%" r="94%">
-      <stop offset="0" stop-color="#FFF" stop-opacity=".66"/>
+    <radialGradient id="bg${u}" cx="32%" cy="16%" r="96%">
+      <stop offset="0" stop-color="#FFF" stop-opacity=".72"/>
+      <stop offset=".55" stop-color="${bg}" stop-opacity=".9"/>
       <stop offset="1" stop-color="${bg}"/>
     </radialGradient>
-    <linearGradient id="sk${u}" x1="24%" y1="6%" x2="80%" y2="98%">
-      <stop offset="0" stop-color="#FFF3E9"/><stop offset=".55" stop-color="${sk}"/>
+    <!-- 얼굴 — 왼쪽 위에서 빛이 들어오고 턱 쪽으로 어두워진다 -->
+    <radialGradient id="sk${u}" cx="34%" cy="26%" r="82%">
+      <stop offset="0" stop-color="#FFF6EE"/>
+      <stop offset=".42" stop-color="${sk}"/>
+      <stop offset=".86" stop-color="${dp}"/>
       <stop offset="1" stop-color="${dp}"/>
+    </radialGradient>
+    <!-- 오른쪽 가장자리에 들어오는 반사광 -->
+    <linearGradient id="rim${u}" x1="100%" y1="30%" x2="55%" y2="70%">
+      <stop offset="0" stop-color="#FFF" stop-opacity=".5"/>
+      <stop offset="1" stop-color="#FFF" stop-opacity="0"/>
     </linearGradient>
-    <linearGradient id="hr${u}" x1="18%" y1="0%" x2="82%" y2="86%">
-      <stop offset="0" stop-color="${h1}"/><stop offset="1" stop-color="${h2}"/>
+    <linearGradient id="hr${u}" x1="16%" y1="0%" x2="84%" y2="92%">
+      <stop offset="0" stop-color="${h1}"/>
+      <stop offset=".5" stop-color="${h1}"/>
+      <stop offset="1" stop-color="${h2}"/>
     </linearGradient>
+    <!-- 머리 광택 -->
+    <linearGradient id="gl${u}" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0" stop-color="#FFF" stop-opacity="0"/>
+      <stop offset=".45" stop-color="#FFF" stop-opacity=".34"/>
+      <stop offset="1" stop-color="#FFF" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="bl${u}" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#F58A7C" stop-opacity=".46"/>
+      <stop offset="1" stop-color="#F58A7C" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="sh${u}" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="2.4"/>
+    </filter>
     <clipPath id="cp${u}"><circle cx="50" cy="50" r="50"/></clipPath>
   </defs>
   <g clip-path="url(#cp${u})">
     <circle cx="50" cy="50" r="50" fill="url(#bg${u})"/>
+    <!-- 인물 뒤로 지는 그림자가 바탕에서 인물을 띄운다 -->
+    <ellipse cx="52" cy="86" rx="34" ry="16" fill="#0B1220" opacity=".13" filter="url(#sh${u})"/>
+
     <g fill="url(#hr${u})">${AV_BACK[a.hair] || ''}</g>
     ${AV_WEAR[a.wear]}
-    <path d="M42 66h16v14a8 8 0 0 1-16 0V66Z" fill="${dp}"/>
-    <ellipse cx="50" cy="79" rx="10" ry="4" fill="#000" opacity=".07"/>
-    <ellipse cx="50" cy="45" rx="24" ry="25" fill="url(#hr${u})"/>
-    <ellipse cx="28.5" cy="53" rx="3.8" ry="4.8" fill="${sk}"/>
-    <ellipse cx="71.5" cy="53" rx="3.8" ry="4.8" fill="${sk}"/>
+    <!-- 옷 위로 지는 턱 그림자 -->
+    <ellipse cx="50" cy="76" rx="15" ry="7" fill="#0B1220" opacity=".16" filter="url(#sh${u})"/>
+
+    <path d="M43 58h14v14a7 7 0 0 1-14 0V58Z" fill="${dp}"/>
+    <ellipse cx="28.5" cy="53" rx="3.6" ry="4.6" fill="${dp}"/>
+    <ellipse cx="71.5" cy="53" rx="3.6" ry="4.6" fill="${dp}"/>
     <ellipse cx="50" cy="52" rx="20.5" ry="22.5" fill="url(#sk${u})"/>
-    <ellipse cx="41" cy="40" rx="9" ry="7" fill="#FFF" opacity=".2"/>
-    <ellipse cx="36.5" cy="59" rx="4.2" ry="2.8" fill="#F79A8C" opacity=".38"/>
-    <ellipse cx="63.5" cy="59" rx="4.2" ry="2.8" fill="#F79A8C" opacity=".38"/>
-    <ellipse cx="41.8" cy="53.5" rx="4.4" ry="5" fill="#FFF"/>
-    <ellipse cx="58.2" cy="53.5" rx="4.4" ry="5" fill="#FFF"/>
-    <ellipse cx="42.1" cy="54" rx="3.4" ry="4" fill="#513524"/>
-    <ellipse cx="58.5" cy="54" rx="3.4" ry="4" fill="#513524"/>
-    <circle cx="42.1" cy="54.4" r="1.7" fill="#241811"/>
-    <circle cx="58.5" cy="54.4" r="1.7" fill="#241811"/>
-    <circle cx="43.4" cy="52.2" r="1.4" fill="#FFF"/>
-    <circle cx="59.8" cy="52.2" r="1.4" fill="#FFF"/>
+    <ellipse cx="50" cy="52" rx="20.5" ry="22.5" fill="url(#rim${u})"/>
+
+    <ellipse cx="36.5" cy="59.5" rx="6" ry="4" fill="url(#bl${u})"/>
+    <ellipse cx="63.5" cy="59.5" rx="6" ry="4" fill="url(#bl${u})"/>
+
+    <!-- 눈 — 아래로 갈수록 밝아지는 홍채에 반사광 두 점 -->
+    <ellipse cx="41.8" cy="53.5" rx="4.5" ry="5.2" fill="#FFF"/>
+    <ellipse cx="58.2" cy="53.5" rx="4.5" ry="5.2" fill="#FFF"/>
+    <ellipse cx="41.8" cy="53.6" rx="4.5" ry="5.2" fill="#0B1220" opacity=".07"/>
+    <ellipse cx="58.2" cy="53.6" rx="4.5" ry="5.2" fill="#0B1220" opacity=".07"/>
+    <ellipse cx="42.1" cy="54.2" rx="3.5" ry="4.1" fill="#5A3B27"/>
+    <ellipse cx="58.5" cy="54.2" rx="3.5" ry="4.1" fill="#5A3B27"/>
+    <ellipse cx="42.1" cy="55.4" rx="3.1" ry="2.9" fill="#8A6144" opacity=".8"/>
+    <ellipse cx="58.5" cy="55.4" rx="3.1" ry="2.9" fill="#8A6144" opacity=".8"/>
+    <circle cx="42.1" cy="54.5" r="1.7" fill="#1B1310"/>
+    <circle cx="58.5" cy="54.5" r="1.7" fill="#1B1310"/>
+    <circle cx="43.5" cy="52.2" r="1.5" fill="#FFF"/>
+    <circle cx="59.9" cy="52.2" r="1.5" fill="#FFF"/>
+    <circle cx="40.6" cy="56.4" r=".8" fill="#FFF" opacity=".7"/>
+    <circle cx="57" cy="56.4" r=".8" fill="#FFF" opacity=".7"/>
+    <!-- 윗 속눈썹 -->
+    <path d="M37.3 51.4c1.6-1.9 5.2-2.6 8.4-1.4" stroke="#2A1C15" stroke-width="1.7"
+          stroke-linecap="round" fill="none" opacity=".9"/>
+    <path d="M62.7 51.4c-1.6-1.9-5.2-2.6-8.4-1.4" stroke="#2A1C15" stroke-width="1.7"
+          stroke-linecap="round" fill="none" opacity=".9"/>
+
     <path d="M36.5 45.6c1.8-1.8 5.4-2.2 7.7-.9" stroke="${h2}" stroke-width="2"
-          stroke-linecap="round" fill="none"/>
+          stroke-linecap="round" fill="none" opacity=".92"/>
     <path d="M63.5 45.6c-1.8-1.8-5.4-2.2-7.7-.9" stroke="${h2}" stroke-width="2"
-          stroke-linecap="round" fill="none"/>
-    <path d="M48.8 60.6c1 .9 1.4 .9 2.4 0" stroke="${dp}" stroke-width="1.3"
-          stroke-linecap="round" fill="none"/>
-    <path d="M45.6 64.6c1.7 2.2 3 3.1 4.4 3.1s2.7-.9 4.4-3.1" fill="#E58A80"/>
-    <path d="M45.6 64.6c1.7 2.2 3 3.1 4.4 3.1s2.7-.9 4.4-3.1" stroke="#C4685F" stroke-width="1.4"
-          stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          stroke-linecap="round" fill="none" opacity=".92"/>
+
+    <path d="M48.6 60.4c1.1 1 1.7 1 2.8 0" stroke="${dp}" stroke-width="1.3"
+          stroke-linecap="round" fill="none" opacity=".85"/>
+    <path d="M45.6 64.6c1.7 2.2 3 3.1 4.4 3.1s2.7-.9 4.4-3.1" fill="#E07E74"/>
+    <path d="M46.6 65.4c1.2 1.3 2.2 1.9 3.4 1.9s2.2-.6 3.4-1.9" fill="#F4A79C" opacity=".7"/>
+    <path d="M45.6 64.6c1.7 2.2 3 3.1 4.4 3.1s2.7-.9 4.4-3.1" stroke="#B85E55"
+          stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+
     <path d="${AV_FRINGE[a.hair]}" fill="url(#hr${u})"/>
     <g fill="url(#hr${u})">${AV_LOCK[a.hair] || ''}</g>
-    <path d="M38 30c5 4 12 6 19 5" stroke="#FFF" stroke-width="1.6" stroke-linecap="round"
-          fill="none" opacity=".26"/>
+    <!-- 머리 광택 한 줄 -->
+    <path d="${AV_FRINGE[a.hair]}" fill="url(#gl${u})"/>
+    <path d="M36 31c5 4.4 12.4 6.4 20 5.2" stroke="#FFF" stroke-width="2.2"
+          stroke-linecap="round" fill="none" opacity=".3"/>
   </g>
 </svg>`;
 }
@@ -3623,10 +3681,9 @@ function drawVoicePicks() {
   }).join('');
   [...host.children].forEach(b => {
     b.onclick = () => {
-      if (host.dataset.kind === 'net') { setVoiceOf(b.dataset.v); markVoiceButtons(); }
-      else { els.voiceSel.value = b.dataset.v; prefs.voice = b.dataset.v; els.voiceNow.textContent = b.dataset.v; }
-      savePrefs();
-      [...host.children].forEach(x => x.classList.toggle('on', x === b));
+      /* 표시는 useVoice 안에서 목록을 다시 그리며 붙는다.
+         여기서 또 건드리면 이미 사라진 노드를 만지게 된다. */
+      useVoice(b.dataset.v, { net: host.dataset.kind === 'net' });
     };
   });
 }
