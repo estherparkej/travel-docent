@@ -1286,6 +1286,10 @@ body.listening .pl-body{padding-bottom:230px}
    줄과 줄 사이가 제각각이라 정돈돼 보이지 않는다. */
 .pl-head{background:#FFF;padding:16px var(--gap) 24px;margin-bottom:8px}
 .pl-sec h2{font-size:18px;font-weight:700;letter-spacing:-.025em;margin-bottom:16px}
+/* 제목 옆에 더보기를 나란히 — 제목의 아래 여백은 줄이 맡는다 */
+.pl-sechead{display:flex;align-items:baseline;justify-content:space-between;gap:12px;
+  margin-bottom:16px}
+.pl-sechead h2{margin-bottom:0}
 .pl-sec:last-of-type{margin-bottom:0}
 
 /* 종류는 제목을 읽은 뒤에 오는 곁말이다 — 제목 아래에 둔다 */

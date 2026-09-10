@@ -3857,6 +3857,9 @@ async function fillShots(name, titles, cover, seq) {
   if (out.length < wanted) for (const x of gal) add(x.url, x.title);  // 그래도 모자라면
   if (out.length) drawShots(out);
 }
+/* 목소리를 더 고르려면 설정으로. 상세에는 아홉 중 앞자리만 보인다. */
+$('plVoiceMore').onclick = () => goto('settings');
+
 const goListen = () => {
   if (!PL.name) return;
   startNarration(PL.name);
