@@ -268,34 +268,73 @@ main{position:relative;min-height:0;overflow:hidden}
 /* ── 축소 플레이어 ────────────────────────────────────────
    원형 하나로 줄였다. 안에는 그 장소의 사진, 그 위에 옅은 막과 재생 표시.
    오른쪽 아래, 탭바 위에 뜬다. */
-.mini{
-  position:fixed;right:var(--gap);z-index:1090;
-  bottom:calc(var(--navh) + max(var(--navlift), var(--safe-b)) + 14px);
-  width:64px;height:64px;border-radius:50%;overflow:hidden;
-  display:grid;place-items:center;
-  background:#FFF;
-  box-shadow:0 6px 20px -4px rgba(0,0,0,.24);
-  animation:rise .28s var(--ease);
-  transition:bottom .3s var(--gentle);
+/* ══════════ 재생 시트 ══════════
+   아이폰 '나의 찾기'처럼, 손잡이 달린 시트가 탭바 위로 올라온다.
+   접히면 미니 플레이어 한 줄, 끌어올리면 전체 플레이어. */
+:root{ --ps-mini:64px; }        /* 미니 한 줄 높이 */
+
+.psheet{
+  position:fixed;left:0;right:0;bottom:0;z-index:1095;
+  height:100dvh;
+  /* 자리는 JS 가 재서 --ps-y 로 정한다 */
+  transform:translate3d(0,var(--ps-y,100dvh),0);
+  border-radius:20px 20px 0 0;
+  background:rgba(255,255,255,.82);
+  backdrop-filter:blur(28px) saturate(1.8);
+  -webkit-backdrop-filter:blur(28px) saturate(1.8);
+  box-shadow:0 -6px 28px -8px rgba(0,0,0,.22);
+  display:flex;flex-direction:column;
+  will-change:transform;touch-action:none;
+  transition:transform .46s cubic-bezier(.32,.72,0,1);
 }
-/* 지도 화면에서 장소 카드가 떠 있으면 그 위로 올라간다 */
-.mini.above-card{bottom:calc(var(--navclear) + 100px)}
-.mini > *{grid-area:1/1}
-.mini img{width:64px;height:64px;object-fit:cover;display:block}
-.mini img[hidden]{display:none}
-/* 파란 표시가 읽히려면 밑바탕이 밝아야 한다. 어두운 막 대신 흰 막을 씌운다. */
-.mini-veil{width:64px;height:64px;border-radius:50%;background:rgba(255,255,255,.72)}
-.mini-ring{width:64px;height:64px;transform:rotate(-90deg);pointer-events:none}
-.mini-ring .ring-bg{fill:none;stroke:rgba(0,123,255,.22);stroke-width:3}
-.mini-ring .ring-fg{fill:none;stroke:var(--acc);stroke-width:3;stroke-linecap:round;
-  stroke-dasharray:186;transition:stroke-dashoffset .25s linear}
-.mini-btn{width:64px;height:64px;padding:0;border:0;background:none;
-  display:grid;place-items:center;color:var(--acc);cursor:pointer;
-  transition:transform var(--dur) var(--gentle)}
-.mini-btn svg{width:26px;height:26px}
-.mini:active{transform:scale(.94)}
-.mini-btn:active{background:var(--acc-soft);transform:scale(.96)}
-.mini-btn .spin,.ico .spin,.play .spin{animation:spin .9s linear infinite}
+.psheet.drag{transition:none}
+.psheet.hidden{transform:translate3d(0,100dvh,0);pointer-events:none}
+
+/* 손잡이 — 끌어서 여닫는 곳 */
+.ps-grip{height:22px;display:grid;place-items:center;flex:none;cursor:grab}
+.ps-grip span{width:38px;height:5px;border-radius:99px;background:rgba(0,0,0,.2)}
+.ps-grip:active{cursor:grabbing}
+
+/* 미니 한 줄 — 첨부 이미지의 구성 */
+.ps-mini{display:flex;align-items:center;gap:12px;flex:none;
+  height:var(--ps-mini);padding:0 var(--gap);cursor:pointer;
+  transition:opacity .18s ease,height .3s cubic-bezier(.32,.72,0,1)}
+.ps-thumb{width:44px;height:44px;border-radius:10px;overflow:hidden;flex:none;
+  background:var(--tint2)}
+.ps-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.ps-thumb img:not([src]){display:none}
+.ps-meta{flex:1;min-width:0}
+.ps-meta b{display:block;font-size:15px;font-weight:700;letter-spacing:-.01em;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ps-meta em{display:block;font-style:normal;font-size:12.5px;color:var(--dim);
+  margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ps-ctl{display:flex;align-items:center;gap:2px;flex:none}
+.ps-btn{width:38px;height:38px;border:0;background:none;padding:0;cursor:pointer;
+  display:grid;place-items:center;color:var(--ink);border-radius:50%;
+  transition:transform var(--dur) var(--gentle),background var(--dur) var(--gentle)}
+.ps-btn svg{width:21px;height:21px}
+.ps-play svg{width:25px;height:25px}
+.ps-btn:active{transform:scale(.9);background:var(--tint)}
+
+/* 얼마나 들었는지 — 미니 줄 아래 실선 */
+.ps-prog{height:2px;margin:0 var(--gap);border-radius:2px;flex:none;
+  background:rgba(0,0,0,.08);overflow:hidden;
+  transition:height .3s cubic-bezier(.32,.72,0,1),opacity .18s ease}
+.ps-prog i{display:block;height:100%;width:0;background:var(--acc);
+  transition:width .25s linear}
+
+/* 펼쳤을 때 나오는 전체 플레이어 */
+.ps-full{flex:1;min-height:0;position:relative;
+  opacity:0;pointer-events:none;transition:opacity .2s ease}
+.psheet.open .ps-full{opacity:1;pointer-events:auto}
+/* 펼치면 미니 줄은 사라질 뿐 아니라 자리도 비워야 한다 —
+   투명하게만 두면 그만큼 사진 위가 흰 띠로 남는다 */
+.psheet.open .ps-mini{height:0;opacity:0;pointer-events:none;overflow:hidden}
+.psheet.open .ps-prog{height:0;margin-top:0;margin-bottom:0;opacity:0}
+.psheet.open{background:#FFF}
+/* 시트 안에서는 플레이어가 제 높이를 다 쓴다 */
+.ps-full #view-player{position:absolute;inset:0;height:100%}
+.ps-full #view-player.hidden{display:block}
 
 .eq{display:flex;align-items:flex-end;gap:2.5px;height:15px}
 .eq i{width:3px;border-radius:2px;background:var(--acc);height:4px;

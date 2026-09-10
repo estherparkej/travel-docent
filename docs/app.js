@@ -69,8 +69,10 @@ const els = {
   scTrack: $('scTrack'), scFill: $('scFill'), scCur: $('scCur'), scDur: $('scDur'),
   downChips: $('downChips'), upChips: $('upChips'),
   logList: $('logList'), logEmpty: $('logEmpty'),
-  mini: $('mini'), miniImg: $('miniImg'), miniEq: $('miniEq'),
-  miniPlay: $('miniPlay'), miniRing: $('miniRing'),
+  sheet: $('playSheet'), psMini: $('psMini'), psGrip: $('psGrip'),
+  miniImg: $('miniImg'), miniTitle: $('miniTitle'), miniSub: $('miniSub'),
+  miniPlay: $('miniPlay'), miniBar: $('miniBar'),
+  miniPrev: $('miniPrev'), miniNext: $('miniNext'), miniScript: $('miniScript'),
   settings: $('settings'), lengthSeg: $('lengthSeg'), toneList: $('toneList'),
   voiceSel: $('voiceSel'), preview: $('previewVoice'), voiceHint: $('voiceHint'),
   engineSeg: $('engineSeg'), quotaNote: $('quotaNote'), quotaTxt: $('quotaTxt'),
@@ -679,7 +681,9 @@ function paint() {
   const dur = total(), cur = Math.min(elapsed(), dur);
   const pct = dur ? (cur / dur) * 100 : 0;
   if (!els.track.classList.contains('drag')) els.fill.style.width = pct + '%';
-  els.miniRing.style.strokeDashoffset = (186 * (1 - pct / 100)).toFixed(1);  // 2πr(29.5) ≈ 186
+  els.miniBar.style.width = pct + '%';
+  const has = P.lines.length > 0 || state.streaming;
+  if (els.sheet.classList.contains('hidden') === has) syncSheet();
   if (!els.track.classList.contains('drag')) els.tCur.textContent = fmt(cur);
   /* 듣는 동안에는 '얼마나 남았나'가 궁금하고, 멈춰 있을 때는 '얼마나 긴가'가 궁금하다.
      일시정지마다 값이 뒤바뀌면 어지러우니 한 번 재생이 시작되면 끝날 때까지 남은 시간을 둔다. */
@@ -711,10 +715,13 @@ function paint() {
   showIcon(els.icoPause, !busy && on);
   els.play.setAttribute('aria-label', on ? '일시정지' : replay ? '처음부터 다시' : '재생');
   els.miniPlay.innerHTML = busy ? ICO.spin : (on ? ICO.pause : (P.ended ? ICO.replay : ICO.play));
+  els.miniTitle.textContent = els.name.textContent || '여행 도슨트';
+  els.miniSub.textContent = els.status.textContent || '';
+  els.miniPrev.disabled = P.idx <= 0;
+  els.miniNext.disabled = P.idx < 0 || P.idx >= P.lines.length - 1;
 
   els.lower.classList.toggle('loading', busy);
   els.status.classList.toggle('mute', on);
-  showIcon(els.miniEq, on && !state.image);
   els.prev.disabled = P.idx <= 0;
   els.next.disabled = P.idx < 0 || P.idx >= P.lines.length - 1;
   els.again.disabled = state.streaming;
@@ -887,8 +894,7 @@ const PIN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-w
 
 function setArt(url) {
   state.image = url;
-  els.miniImg.hidden = !url;
-  if (url) els.miniImg.src = url;
+  if (url) els.miniImg.src = url; else els.miniImg.removeAttribute('src');
   setPhotos(url ? [{ url }] : []);
 }
 
@@ -992,7 +998,7 @@ function renderLog() {
   [...els.logList.children].forEach((li, i) => {
     li.querySelector('.t').textContent = list[i];
     li.querySelector('.go').onclick = () => {
-      goto('player');
+      showSheet();
       narrate();
     };
   });
@@ -1165,7 +1171,7 @@ function startNarration(name) {
   state.manual = name;
   els.name.textContent = name;
   els.addr.textContent = '';
-  goto('player');
+  showSheet();
   narrate();
 }
 
@@ -1617,7 +1623,6 @@ function pickPin(rec) {
   pickedPin = rec;
   if (!rec) {
     $('placeCard').classList.add('hidden');
-    els.mini.classList.remove('above-card');
     if (mapMoved()) $('research').classList.remove('hidden');
     return;
   }
@@ -1630,7 +1635,6 @@ function pickPin(rec) {
     || (rec.dist != null ? `여기서 ${rec.dist}m` : '들려드릴 수 있어요');
   $('pcThumb').innerHTML = rec.image ? `<img src="${rec.image}" alt="">` : PIN_SM;
   $('placeCard').classList.remove('hidden');
-  els.mini.classList.add('above-card');     // 카드에 가리지 않게 위로
   $('research').classList.add('hidden');    // 카드와 자리가 겹친다
   warmPlace(rec.name);
 
@@ -2424,7 +2428,7 @@ els.viewerClose.onclick = closeViewer;
 
 /* ── 화면 전환 ────────────────────────────────────────────
    홈 · 검색 · 플레이어 · 히스토리 · 설정 */
-const VIEWS = ['home', 'nearby', 'place', 'search', 'player', 'history', 'settings'];
+const VIEWS = ['home', 'nearby', 'place', 'search', 'history', 'settings'];
 
 /* 활성 알약을 그 탭 자리로 미끄러뜨린다.
    탭마다 배경을 켜고 끄면 깜빡이지만, 하나가 옮겨 다니면 이어져 보인다. */
@@ -2487,15 +2491,13 @@ function goto(view) {
   moveTabInk(view);
   if (window.__segInk) requestAnimationFrame(window.__segInk);
   if (first) requestAnimationFrame(() => { const k = $('tabInk'); if (k) k.style.transition = ''; });
-  els.mini.classList.toggle('hidden', view === 'player' || !P.lines.length);
-  if (view !== 'nearby') els.mini.classList.remove('above-card');
+  syncSheet();
   if (view === 'home') { renderHome(); if (homeReady) startHero(); }
   else stopHero();
   if (view === 'search') renderSearch();
   if (view === 'nearby') renderNearby();
   if (window.__plDockCheck) setTimeout(window.__plDockCheck, 60);
   if (view === 'settings') renderQuota();
-  if (view === 'player') closeScript();
 }
 /* 손이 화면을 훑는 동안에는 탭바를 조금 물린다.
    위로 굴리든 아래로 굴리든 같다. 멈추면 제자리로 돌아온다. */
@@ -2513,12 +2515,16 @@ function goto(view) {
 })();
 
 document.querySelectorAll('.tab').forEach(b => b.onclick = () => {
+  /* 플레이어는 이제 화면이 아니라 시트다 — 탭을 누르면 시트를 펼친다 */
+  if (b.dataset.view === 'player') {
+    if (P.lines.length || state.streaming) openSheet();
+    else notify('먼저 들을 곳을 골라 주세요.');
+    return;
+  }
   // 탭으로 들어온 검색에는 뒤로 갈 곳이 없다
   if (b.dataset.view === 'search') { cameFrom = ''; els.searchBack.classList.add('hidden'); }
   goto(b.dataset.view);
 });
-/* 원 안에 재생 표시가 들어 있으니, 누르면 재생·일시정지가 되는 게 자연스럽다.
-   플레이어 화면은 아래 탭으로 바로 갈 수 있다. */
 
 /* 해설 패널 — 플레이어 안에서 열고 닫는다 */
 function openScript() {
@@ -2585,8 +2591,106 @@ function togglePlay() {
   }
 }
 els.play.onclick = togglePlay;
+/* ── 재생 시트 ──────────────────────────────────────────
+   '나의 찾기'처럼 손잡이를 끌어 미니와 전체를 오간다.
+   자리는 --ps-y 하나로 정해서, 끄는 동안에도 같은 값만 움직인다. */
+const SHEET = { open: false, y: 0, drag: false };
+
+/* 접힌 높이는 재서 정한다 — CSS 로 더하면 탭바와 몇 픽셀씩 어긋난다.
+   탭바가 내려간 2뎁스에서는 그만큼 시트도 내려앉는다. */
+const peekY = () => {
+  const h = els.sheet.offsetHeight || innerHeight;
+  /* 탭바의 '지금 위치'로 재면 안 된다 — 화면을 옮기는 동안 탭바가 아직
+     미끄러지고 있어서, 그 찰나에 재면 시트가 탭바 뒤로 내려앉는다.
+     자리 대신 크기로 잰다. 2뎁스에서는 탭바가 없으니 그만큼 내린다. */
+  const bar = document.querySelector('.tabbar');
+  const lift = parseFloat(getComputedStyle(bar).bottom) || 10;
+  const gap = document.body.classList.contains('deep')
+    ? 14
+    : bar.offsetHeight + lift + 12;
+  const peek = els.psGrip.offsetHeight + els.psMini.offsetHeight + 2 + gap;
+  return Math.max(0, h - peek);
+};
+const setY = (y, live) => {
+  els.sheet.classList.toggle('drag', !!live);
+  els.sheet.style.setProperty('--ps-y', y + 'px');
+};
+
+function openSheet() {
+  els.sheet.classList.remove('hidden');
+  SHEET.open = true;
+  els.sheet.classList.add('open');
+  setY(0);
+  closeScript();
+  paint();
+}
+/* 재생이 시작되면 미니 한 줄만 올라온다 — 펼치는 건 손잡이를 끌 때다 */
+function showSheet() {
+  els.sheet.classList.remove('hidden');
+  SHEET.open = false;
+  els.sheet.classList.remove('open');
+  setY(peekY());
+}
+function closeSheet() {
+  SHEET.open = false;
+  els.sheet.classList.remove('open');
+  setY(peekY());
+  closeScript();
+}
+/* 들을 게 있어야 시트가 올라온다 */
+function syncSheet() {
+  const has = P.lines.length > 0 || state.streaming;
+  els.sheet.classList.toggle('hidden', !has);
+  if (!has) { SHEET.open = false; els.sheet.classList.remove('open'); return; }
+  setY(SHEET.open ? 0 : peekY());
+}
+window.__syncSheet = syncSheet;
+
 els.miniPlay.onclick = e => { e.stopPropagation(); togglePlay(); };
-els.mini.onclick = () => togglePlay();
+els.miniPrev.onclick = e => { e.stopPropagation(); playFrom(P.idx - 1); };
+els.miniNext.onclick = e => { e.stopPropagation(); playFrom(P.idx + 1); };
+els.miniScript.onclick = e => { e.stopPropagation(); openSheet(); openScript(); };
+els.psMini.onclick = () => openSheet();
+els.psMini.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openSheet(); } };
+
+/* 손잡이 끌기 — 손가락을 따라오고, 절반을 넘기거나 던지면 그쪽으로 붙는다 */
+(() => {
+  let y0 = 0, base = 0, dy = 0, t0 = 0, on = false;
+  const TAKE = 0.32, FLICK = 0.45;   // 넘길 비율, 던지는 속도(px/ms)
+
+  const down = e => {
+    on = true; dy = 0; t0 = performance.now();
+    y0 = e.clientY;
+    base = SHEET.open ? 0 : peekY();
+    els.sheet.setPointerCapture?.(e.pointerId);
+  };
+  const move = e => {
+    if (!on) return;
+    dy = e.clientY - y0;
+    const lo = 0, hi = peekY();
+    let y = base + dy;
+    // 끝을 넘어가면 고무줄처럼 덜 움직인다
+    if (y < lo) y = lo + (y - lo) * 0.3;
+    if (y > hi) y = hi + (y - hi) * 0.3;
+    setY(y, true);
+  };
+  const up = () => {
+    if (!on) return;
+    on = false;
+    const span = peekY() || 1;
+    const speed = dy / Math.max(1, performance.now() - t0);
+    if (Math.abs(dy) < 6) { SHEET.open ? closeSheet() : openSheet(); return; }
+    const goOpen = speed < -FLICK ? true
+                 : speed > FLICK ? false
+                 : (base + dy) < span * (1 - TAKE);
+    goOpen ? openSheet() : closeSheet();
+  };
+  els.psGrip.addEventListener('pointerdown', down);
+  addEventListener('pointermove', move);
+  addEventListener('pointerup', up);
+  addEventListener('pointercancel', up);
+  addEventListener('resize', () => { if (!SHEET.open) setY(peekY()); });
+})();
 els.prev.onclick = () => playFrom(P.idx - 1);
 els.next.onclick = () => playFrom(P.idx + 1);
 els.again.onclick = () => narrate({ again: true });
