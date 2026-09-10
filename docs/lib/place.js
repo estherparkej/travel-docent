@@ -78,17 +78,29 @@ export function openRoute(app, from, to, name) {
 /* ── 언제 많이 찾을까 ────────────────────────────────────
    위키백과를 찾아본 사람 수를 달마다 센다.
    방문객 수 자체는 무료로 구할 길이 없다. 관심의 크기를 대신 본다. */
+/* 달마다 얼마나 찾아봤나 — 1월부터 12월까지 한 해 순서로 돌려준다.
+   지난 열두 달을 그대로 늘어놓으면 9월에서 시작해 8월에 끝나
+   '여름에 몰린다' 같은 걸 한눈에 못 읽는다.
+   최근 스물넉 달을 받아 달별로 합치면 어느 달에 붙어도 1~12월이 채워진다. */
 export async function monthlyInterest(title) {
   const end = new Date(); end.setMonth(end.getMonth() - 1);
-  const start = new Date(end); start.setMonth(start.getMonth() - 11);
+  const start = new Date(end); start.setMonth(start.getMonth() - 23);
   const f = d => `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}0100`;
   try {
     const j = await fetch('https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article' +
       `/ko.wikipedia/all-access/all-agents/${encodeURIComponent(title.replace(/ /g, '_'))}` +
       `/monthly/${f(start)}/${f(end)}`).then(r => r.json());
-    const items = (j.items || []).map(i => ({
-      month: +i.timestamp.slice(4, 6), views: i.views,
-    }));
+    const raw = j.items || [];
+    if (raw.length < 6) return null;
+    /* 같은 달이 두 번 있으면 평균을 낸다 — 한 해만 있는 달과 높이를 견줄 수 있다 */
+    const sum = new Array(12).fill(0), cnt = new Array(12).fill(0);
+    for (const i of raw) {
+      const m = +i.timestamp.slice(4, 6) - 1;
+      sum[m] += i.views; cnt[m] += 1;
+    }
+    const items = [];
+    for (let m = 0; m < 12; m++)
+      if (cnt[m]) items.push({ month: m + 1, views: Math.round(sum[m] / cnt[m]) });
     return items.length >= 6 ? items : null;
   } catch (_) { return null; }
 }
