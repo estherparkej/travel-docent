@@ -2584,33 +2584,44 @@ els.play.onclick = togglePlay;
    자리는 --ps-y 하나로 정해서, 끄는 동안에도 같은 값만 움직인다. */
 const SHEET = { open: false };
 
-/* 탭바는 바닥에 붙어 움직이지 않는다. 시트는 그 위로 자란다.
-   접혔을 때 보이는 건 손잡이와 — 재생 중이면 — 미니 줄뿐이다. */
-function peekY() {
-  const tab = els.tabbar.offsetHeight;
-  document.documentElement.style.setProperty('--tabH', tab + 'px');
+/* 접힌 키와 펼친 키를 재서, 그 사이를 오간다.
+   자리를 옮기는 대신 키가 자라야 탭바가 카드 안에서 늘 보인다. */
+function shutH() {
   const playing = els.sheet.classList.contains('playing') && !SHEET.open;
   const mini = playing ? els.psMini.offsetHeight + els.psProg.offsetHeight : 0;
-  const shown = els.psGrip.offsetHeight + mini;
-  /* 시트는 상태바 아래에서 시작하므로, 자리는 화면이 아니라
-     시트 자신의 높이에서 재야 어긋나지 않는다. */
-  const deep = document.body.classList.contains('deep');
-  const h = els.sheet.offsetHeight || innerHeight;
-  return Math.max(0, h - (deep ? 0 : tab) - shown);
+  return els.psGrip.offsetHeight + mini + els.tabbar.offsetHeight;
 }
-const setY = (y, live) => {
+/* 펼쳐도 상태바 자리는 비워 둔다. env() 는 읽을 방법이 없어 한 번 재 둔다. */
+function safeTop() {
+  if (safeTop.px == null) {
+    const probe = document.createElement('div');
+    probe.style.cssText = 'position:fixed;top:0;height:env(safe-area-inset-top);visibility:hidden';
+    document.body.appendChild(probe);
+    safeTop.px = probe.offsetHeight;
+    probe.remove();
+  }
+  return safeTop.px;
+}
+function openH() { return innerHeight - (Math.max(safeTop(), 12) + 8); }
+/* 키와 함께 '얼마나 펼쳐졌나'(--ps-t)도 준다.
+   카드의 좌우·아래 여백과 모서리가 그 값을 따라 0 으로 줄어든다. */
+function setH(h, live) {
   els.sheet.classList.toggle('drag', !!live);
-  els.sheet.style.setProperty('--ps-y', y + 'px');
-};
-/* 미니 줄이 펴지고 접히는 0.34초 동안 시트가 앉을 자리도 계속 바뀐다.
-   한 번만 재면 펴지기 전 높이로 굳어 버리므로, 다 펴질 때까지 따라 잰다. */
+  const lo = shutH(), hi = openH();
+  els.sheet.style.setProperty('--ps-h', h + 'px');
+  const t = Math.max(0, Math.min(1, (h - lo) / Math.max(1, hi - lo)));
+  els.sheet.style.setProperty('--ps-t', t.toFixed(3));
+}
+
+/* 미니 줄이 펴지고 접히는 0.34초 동안 카드가 앉을 키도 계속 바뀐다.
+   한 번만 재면 펴지기 전 키로 굳어 버리므로, 다 펴질 때까지 따라 잰다. */
 function fitSheet() {
   cancelAnimationFrame(fitSheet.raf);
   const until = performance.now() + 460;
   const tick = () => {
     /* 손으로 끄는 중엔 비켜 주되, 루프는 살려 둔다 —
        여기서 그냥 끝내면 손을 뗀 뒤 제자리를 못 찾는다 */
-    if (!els.sheet.classList.contains('drag')) setY(SHEET.open ? 0 : peekY());
+    if (!els.sheet.classList.contains('drag')) setH(SHEET.open ? openH() : shutH());
     if (performance.now() < until) fitSheet.raf = requestAnimationFrame(tick);
   };
   tick();
@@ -2646,6 +2657,25 @@ function showSheet() {
   fitSheet();
 }
 
+/* 읽어 내려가는 동안에는 카드가 살짝 물러나고, 되돌아 올라오면 제 크기로.
+   펼친 상태에서는 건드리지 않는다 — 그때 카드는 화면 그 자체다. */
+(() => {
+  let last = 0, idle = 0;
+  const onScroll = e => {
+    if (SHEET.open) return;
+    const el = e.target === document ? document.scrollingElement : e.target;
+    const now = el.scrollTop ?? scrollY;
+    if (Math.abs(now - last) < 4) return;
+    els.sheet.classList.toggle('shrink', now > last);   // 내려가면 물러나고, 올라오면 돌아온다
+    last = now;
+    clearTimeout(idle);
+    idle = setTimeout(() => els.sheet.classList.remove('shrink'), 900);
+  };
+  for (const el of document.querySelectorAll('.scroller, .transcript'))
+    el.addEventListener('scroll', onScroll, { passive: true });
+  addEventListener('scroll', onScroll, { passive: true });
+})();
+
 els.miniPlay.onclick = e => { e.stopPropagation(); togglePlay(); };
 els.miniPrev.onclick = e => { e.stopPropagation(); playFrom(P.idx - 1); };
 els.miniNext.onclick = e => { e.stopPropagation(); playFrom(P.idx + 1); };
@@ -2653,7 +2683,7 @@ els.miniScript.onclick = e => { e.stopPropagation(); openSheet(); openScript(); 
 els.psMini.onclick = () => { if (!SHEET.dragged) openSheet(); };
 els.psMini.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openSheet(); } };
 
-/* 손잡이 끌기 — 위로 올리면 펼쳐지고, 쓸어내리면 접힌다.
+/* 손잡이 끌기 — 위로 올리면 카드가 자라고, 쓸어내리면 줄어든다.
    손가락을 그대로 따라오다가, 3분의 1을 넘기거나 던지면 그쪽으로 붙는다. */
 (() => {
   let y0 = 0, base = 0, dy = 0, t0 = 0, on = false, moved = false;
@@ -2662,19 +2692,19 @@ els.psMini.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preven
   const down = e => {
     on = true; moved = false; dy = 0; t0 = performance.now();
     y0 = e.clientY;
-    base = SHEET.open ? 0 : peekY();
-    els.psGrip.setPointerCapture?.(e.pointerId);
+    base = SHEET.open ? openH() : shutH();
+    e.currentTarget.setPointerCapture?.(e.pointerId);
   };
   const move = e => {
     if (!on) return;
     dy = e.clientY - y0;
     if (!moved && Math.abs(dy) < 4) return;
     moved = true;
-    const hi = peekY();
-    let y = base + dy;
-    if (y < 0)  y = y * 0.3;                 // 끝을 넘어가면 고무줄처럼
-    if (y > hi) y = hi + (y - hi) * 0.3;
-    setY(y, true);
+    const lo = shutH(), hi = openH();
+    let h = base - dy;                       // 위로 끌면(-dy) 키가 자란다
+    if (h < lo) h = lo - (lo - h) * 0.3;     // 끝을 넘어가면 고무줄처럼
+    if (h > hi) h = hi + (h - hi) * 0.3;
+    setH(h, true);
   };
   const up = () => {
     if (!on) return;
@@ -2682,11 +2712,11 @@ els.psMini.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preven
     SHEET.dragged = moved;
     setTimeout(() => { SHEET.dragged = false; }, 0);
     if (!moved) { SHEET.open ? closeSheet() : openSheet(); return; }
-    const span = peekY() || 1;
-    const speed = dy / Math.max(1, performance.now() - t0);
-    const goOpen = speed < -FLICK ? true
-                 : speed > FLICK ? false
-                 : (base + dy) < span * (1 - TAKE);
+    const lo = shutH(), hi = openH();
+    const speed = -dy / Math.max(1, performance.now() - t0);   // 위로가 +
+    const goOpen = speed > FLICK ? true
+                 : speed < -FLICK ? false
+                 : (base - dy) > lo + (hi - lo) * TAKE;
     goOpen ? openSheet() : closeSheet();
   };
   els.psGrip.addEventListener('pointerdown', down);

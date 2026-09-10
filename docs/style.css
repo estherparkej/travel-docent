@@ -269,34 +269,54 @@ main{position:relative;min-height:0;overflow:hidden}
    원형 하나로 줄였다. 안에는 그 장소의 사진, 그 위에 옅은 막과 재생 표시.
    오른쪽 아래, 탭바 위에 뜬다. */
 /* ══════════ 재생 시트 ══════════
-   아이폰 '나의 찾기'와 같은 구조 — 손잡이·미니 플레이어·탭바가
-   한 덩어리로 붙어 함께 오르내린다. 시트 바닥이 곧 화면 바닥이다. */
-:root{ --ps-mini:64px; }
+   영상과 같은 구조 — 손잡이·미니 플레이어·탭바가 든 플로팅 카드다.
+   접히면 좌우·아래에 여백을 두고 떠 있고, 손잡이를 올리면
+   그 여백이 0 으로 줄며 화면을 꽉 채운다. --ps-t 가 그 진행도(0~1). */
+:root{ --ps-mini:64px; --ps-grip:26px; }
 
 .psheet{
-  position:fixed;left:0;right:0;bottom:0;z-index:1098;
-  /* 전체로 펼쳐도 상태바 자리는 비워 둔다 — 영상도 그 아래에서 멈춘다 */
-  --ps-top:calc(max(env(safe-area-inset-top), 12px) + 8px);
-  height:calc(100dvh - var(--ps-top));
-  transform:translate3d(0,var(--ps-y,100dvh),0);
-  border-radius:22px 22px 0 0;
-  background:rgba(255,255,255,.86);
+  --ps-t:0;                                  /* 0 접힘 · 1 펼침 */
+  --ps-side:12px;                            /* 떠 있을 때 좌우 여백 */
+  --ps-lift:10px;                            /* 떠 있을 때 아래 여백 */
+  position:fixed;z-index:1100;
+  left:calc(var(--ps-side) * (1 - var(--ps-t)));
+  right:calc(var(--ps-side) * (1 - var(--ps-t)));
+  bottom:calc(max(var(--ps-lift), env(safe-area-inset-bottom)) * (1 - var(--ps-t)));
+  /* 자리가 아니라 키가 자란다 — 그래야 탭바가 카드 안에 있으면서도 늘 보인다 */
+  height:var(--ps-h, 90px);
+  border-radius:22px 22px calc(22px * (1 - var(--ps-t))) calc(22px * (1 - var(--ps-t)));
+  overflow:hidden;
+  background:rgba(255,255,255,.9);
   backdrop-filter:blur(30px) saturate(1.8);
   -webkit-backdrop-filter:blur(30px) saturate(1.8);
-  box-shadow:0 -1px 0 rgba(0,0,0,.06),0 -10px 34px -10px rgba(0,0,0,.2);
+  box-shadow:0 8px 30px -8px rgba(0,0,0,.22),0 2px 8px rgba(0,0,0,.06);
   display:flex;flex-direction:column;
-  will-change:transform;
-  transition:transform .5s cubic-bezier(.32,.72,0,1);
+  transform:translate3d(0,0,0) scale(var(--ps-s,1));
+  transform-origin:50% 100%;
+  will-change:height;
+  transition:height .5s cubic-bezier(.32,.72,0,1),
+             left .5s cubic-bezier(.32,.72,0,1),
+             right .5s cubic-bezier(.32,.72,0,1),
+             bottom .5s cubic-bezier(.32,.72,0,1),
+             border-radius .5s cubic-bezier(.32,.72,0,1),
+             transform .34s cubic-bezier(.32,.72,0,1);
 }
-.psheet.drag{transition:none}
-/* 2뎁스에서는 통째로 내려간다 */
-.psheet.down{transform:translate3d(0,100dvh,0);pointer-events:none}
+.psheet.drag{transition:transform .34s cubic-bezier(.32,.72,0,1)}
+.psheet.down{transform:translate3d(0,calc(100% + 24px),0);pointer-events:none}
+/* 읽어 내려가는 동안에는 살짝 물러난다 */
+.psheet.shrink{--ps-s:.9}
 
-/* 손잡이 — 끌어서 여닫는 곳. 시트 어디를 잡아도 끌리지만 여기가 표시다. */
-.ps-grip{height:26px;display:grid;place-items:center;flex:none;
-  cursor:grab;touch-action:none}
-.ps-grip span{width:36px;height:5px;border-radius:99px;background:rgba(0,0,0,.18)}
-.ps-grip:active{cursor:grabbing}
+/* 손잡이 — 여기를 잡고 올린다. 펼치면 사진 위로 얹힌다. */
+.ps-grip{height:var(--ps-grip);display:grid;place-items:center;flex:none;
+  position:relative;z-index:3;cursor:grab;touch-action:none}
+.ps-grip span{width:36px;height:5px;border-radius:99px;background:rgba(0,0,0,.18);
+  transition:background .25s ease}
+.psheet.open .ps-grip span{background:rgba(255,255,255,.85)}
+/* 사진이 손잡이 뒤까지 올라오므로, 그 위에 그라데이션을 얹어 손잡이를 살린다 */
+.ps-grip::before{content:"";position:absolute;left:0;right:0;top:0;height:72px;
+  pointer-events:none;opacity:0;transition:opacity .3s ease;
+  background:linear-gradient(to bottom,rgba(0,0,0,.34),rgba(0,0,0,.14) 55%,transparent)}
+.psheet.open .ps-grip::before{opacity:1}
 
 /* 미니 플레이어 — 재생 중일 때만 탭바 위에 한 줄 */
 .ps-mini{display:flex;align-items:center;gap:12px;flex:none;touch-action:none;
@@ -322,7 +342,6 @@ main{position:relative;min-height:0;overflow:hidden}
 .ps-btn:active{transform:scale(.9);background:var(--tint)}
 .ps-btn:disabled{opacity:.3}
 
-/* 얼마나 들었는지 — 미니 줄과 탭바 사이 실선 */
 .ps-prog{height:2px;margin:0 var(--gap);border-radius:2px;flex:none;
   background:rgba(0,0,0,.08);overflow:hidden;
   transition:height .34s cubic-bezier(.32,.72,0,1),opacity .2s ease}
@@ -331,18 +350,16 @@ main{position:relative;min-height:0;overflow:hidden}
 .psheet:not(.playing) .ps-prog,
 .psheet.open .ps-prog{height:0;opacity:0}
 
-/* 펼쳤을 때 나오는 전체 플레이어 — 손잡이와 탭바 사이를 채운다 */
+/* 펼쳤을 때 나오는 전체 플레이어.
+   사진이 손잡이 자리까지 올라오도록 그만큼 끌어올린다. */
 .ps-full{flex:1;min-height:0;position:relative;
   opacity:0;pointer-events:none;transition:opacity .22s ease}
-.psheet.open .ps-full{opacity:1;pointer-events:auto}
-.psheet.open{background:#FFF;backdrop-filter:none;-webkit-backdrop-filter:none}
-/* 절대 배치는 안쪽 여백을 무시한다 — 아래를 탭바만큼 띄워야
-   조작 버튼이 탭바 뒤로 숨지 않는다 */
-.ps-full #view-player{position:absolute;left:0;right:0;top:0;
-  bottom:var(--tabH,64px);height:auto}
-/* 시트 안에서는 떠 있는 캡슐 기준의 아래 여백이 필요 없다 */
-.ps-full .lower{padding-bottom:12px}
+.psheet.open .ps-full{opacity:1;pointer-events:auto;
+  margin-top:calc(-1 * var(--ps-grip))}
+.psheet.open{background:#FFF}
+.ps-full #view-player{position:absolute;inset:0;height:auto}
 .ps-full #view-player.hidden{display:block}
+.ps-full .lower{padding-bottom:12px}
 
 .eq{display:flex;align-items:flex-end;gap:2.5px;height:15px}
 .eq i{width:3px;border-radius:2px;background:var(--acc);height:4px;
@@ -355,18 +372,16 @@ main{position:relative;min-height:0;overflow:hidden}
 /* ── 플로팅 캡슐 내비 ─────────────────────────────────── */
 /* 떠 있는 캡슐을 그만두고 바닥에 붙였다.
    시트와 같은 바탕·흐림을 써서 손잡이부터 탭바까지 한 면으로 이어진다. */
+/* 탭바는 카드의 바닥이다 — 바탕과 흐림은 카드가 맡으므로 자리만 잡는다.
+   펼치면 아래 안전영역만큼 더 내려앉는다. */
 .tabbar{
-  position:fixed;left:0;right:0;bottom:0;z-index:1099;
+  position:relative;flex:none;z-index:2;
   display:grid;grid-template-columns:repeat(5,1fr);
-  width:100%;padding:6px var(--gap) max(var(--safe-b), 8px);
-  background:rgba(255,255,255,.86);
-  backdrop-filter:blur(30px) saturate(1.8);
-  -webkit-backdrop-filter:blur(30px) saturate(1.8);
-  box-shadow:0 -1px 0 rgba(0,0,0,.05);
-  transition:transform .4s cubic-bezier(.32,.72,0,1),opacity .24s ease;
+  width:100%;background:none;
+  padding:6px var(--gap)
+          calc(6px + env(safe-area-inset-bottom) * var(--ps-t, 0));
+  transition:padding .5s cubic-bezier(.32,.72,0,1);
 }
-/* 2뎁스에서는 탭바도 시트와 함께 내려간다 */
-body.deep .tabbar{transform:translateY(100%);opacity:0;pointer-events:none}
 .tab{
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
   padding:7px 2px 6px;border-radius:999px;
