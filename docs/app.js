@@ -2728,6 +2728,7 @@ function setH(h, live) {
 function applyStep() {
   els.sheet.classList.toggle('mini', SHEET.step >= 1);
   els.sheet.classList.toggle('open', SHEET.step === 2);
+  document.body.classList.toggle('sheetopen', SHEET.step === 2);
   SHEET.open = SHEET.step === 2;
 }
 function goStep(i) {
