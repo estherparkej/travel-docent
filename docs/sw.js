@@ -2,7 +2,7 @@
    껍데기(HTML·CSS·JS·아이콘)만 캐시한다.
    해설과 사진은 매번 새로 받아야 하므로 캐시하지 않는다. */
 
-const SHELL = 'docent3-shell-v71';
+const SHELL = 'docent3-shell-v72';
 const FILES = ['./', './index.html', './style.css', './app.js',
                './manifest.webmanifest',
                './lib/wiki.js', './lib/llm.js', './lib/tts.js',
@@ -43,8 +43,15 @@ self.addEventListener('fetch', e => {
           caches.open(SHELL).then(c => c.put(e.request, res.clone())).catch(() => {});
           return res;
         })
+        /* caches.match 는 약속(Promise)을 돌려준다. 약속은 언제나 참이라
+           예전의 `a || b` 는 b 로 넘어가는 법이 없었고, 캐시가 비어 있으면
+           undefined 를 내주어 화면이 아예 뜨지 않았다. */
         .catch(() => caches.match('./index.html', { cacheName: SHELL })
-                     || caches.match('./index.html'))
+          .then(hit => hit || caches.match('./index.html'))
+          .then(hit => hit || new Response(
+            '<!doctype html><meta charset=utf-8><p style="font:16px/1.6 system-ui;padding:24px">'
+            + '연결이 없어 화면을 불러오지 못했어요. 연결된 뒤 다시 열어 주세요.',
+            { headers: { 'Content-Type': 'text/html; charset=utf-8' } })))
     );
     return;
   }
