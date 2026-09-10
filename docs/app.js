@@ -1507,8 +1507,12 @@ async function renderNearby() {
 }
 
 async function dropPins(at, { keepView = false } = {}) {
-  pins.forEach(p => p.marker.remove());
-  pins = [];
+  /* 묶여 있는 핀은 제 마커가 없다(무리 마커 하나가 대신한다).
+     그걸 모르고 지우려 들면 여기서 터져, 먼 곳으로 옮겨 다시 찾을 때
+     — 멀리 갈수록 핀이 묶이므로 — 아무것도 안 나왔다. */
+  pins.forEach(p => p.marker && p.marker.remove());
+  clusters.forEach(m => m.remove());
+  pins = []; clusters = [];
 
   const raw = await wiki.nearby(at.lat, at.lon, 8000, 60);
   const coords = Object.fromEntries(raw.map(x => [x.title, x]));
@@ -1667,6 +1671,9 @@ async function researchHere() {
   mapAt = at;
   try {
     await dropPins(at, { keepView: true });
+    if (!pins.length) notify('이 근처에서는 들려드릴 곳을 찾지 못했어요.');
+  } catch (_) {
+    notify('찾는 중에 문제가 생겼어요. 다시 눌러 주세요.');
   } finally {
     btn.classList.remove('busy');
     $('researchLabel').textContent = '현위치에서 검색';
