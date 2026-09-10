@@ -72,6 +72,7 @@ const els = {
   sheet: $('playSheet'), psMini: $('psMini'), psGrip: $('psGrip'),
   miniImg: $('miniImg'), miniTitle: $('miniTitle'), miniSub: $('miniSub'),
   miniPlay: $('miniPlay'), miniBar: $('miniBar'),
+  psProg: document.querySelector('.ps-prog'), tabbar: document.querySelector('.tabbar'),
   miniPrev: $('miniPrev'), miniNext: $('miniNext'), miniScript: $('miniScript'),
   settings: $('settings'), lengthSeg: $('lengthSeg'), toneList: $('toneList'),
   voiceSel: $('voiceSel'), preview: $('previewVoice'), voiceHint: $('voiceHint'),
@@ -683,7 +684,7 @@ function paint() {
   if (!els.track.classList.contains('drag')) els.fill.style.width = pct + '%';
   els.miniBar.style.width = pct + '%';
   const has = P.lines.length > 0 || state.streaming;
-  if (els.sheet.classList.contains('hidden') === has) syncSheet();
+  if (els.sheet.classList.contains('playing') !== has) syncSheet();
   if (!els.track.classList.contains('drag')) els.tCur.textContent = fmt(cur);
   /* 듣는 동안에는 '얼마나 남았나'가 궁금하고, 멈춰 있을 때는 '얼마나 긴가'가 궁금하다.
      일시정지마다 값이 뒤바뀌면 어지러우니 한 번 재생이 시작되면 끝날 때까지 남은 시간을 둔다. */
@@ -2499,20 +2500,6 @@ function goto(view) {
   if (window.__plDockCheck) setTimeout(window.__plDockCheck, 60);
   if (view === 'settings') renderQuota();
 }
-/* 손이 화면을 훑는 동안에는 탭바를 조금 물린다.
-   위로 굴리든 아래로 굴리든 같다. 멈추면 제자리로 돌아온다. */
-(() => {
-  const bar = document.querySelector('.tabbar');
-  let idle = 0;
-  const onScroll = () => {
-    bar.classList.add('shrink');
-    clearTimeout(idle);
-    idle = setTimeout(() => bar.classList.remove('shrink'), 420);
-  };
-  for (const el of document.querySelectorAll('.scroller, .transcript'))
-    el.addEventListener('scroll', onScroll, { passive: true });
-  addEventListener('scroll', onScroll, { passive: true });
-})();
 
 document.querySelectorAll('.tab').forEach(b => b.onclick = () => {
   /* 플레이어는 이제 화면이 아니라 시트다 — 탭을 누르면 시트를 펼친다 */
@@ -2592,59 +2579,69 @@ function togglePlay() {
 }
 els.play.onclick = togglePlay;
 /* ── 재생 시트 ──────────────────────────────────────────
-   '나의 찾기'처럼 손잡이를 끌어 미니와 전체를 오간다.
+   '나의 찾기'와 같은 구조다. 손잡이·미니 플레이어·탭바가 한 덩어리로
+   붙어 있고, 손잡이를 올리면 그 덩어리가 전체 화면으로 펼쳐진다.
    자리는 --ps-y 하나로 정해서, 끄는 동안에도 같은 값만 움직인다. */
-const SHEET = { open: false, y: 0, drag: false };
+const SHEET = { open: false };
 
-/* 접힌 높이는 재서 정한다 — CSS 로 더하면 탭바와 몇 픽셀씩 어긋난다.
-   탭바가 내려간 2뎁스에서는 그만큼 시트도 내려앉는다. */
-const peekY = () => {
-  const h = els.sheet.offsetHeight || innerHeight;
-  /* 탭바의 '지금 위치'로 재면 안 된다 — 화면을 옮기는 동안 탭바가 아직
-     미끄러지고 있어서, 그 찰나에 재면 시트가 탭바 뒤로 내려앉는다.
-     자리 대신 크기로 잰다. 2뎁스에서는 탭바가 없으니 그만큼 내린다. */
-  const bar = document.querySelector('.tabbar');
-  const lift = parseFloat(getComputedStyle(bar).bottom) || 10;
-  const gap = document.body.classList.contains('deep')
-    ? 14
-    : bar.offsetHeight + lift + 12;
-  const peek = els.psGrip.offsetHeight + els.psMini.offsetHeight + 2 + gap;
-  return Math.max(0, h - peek);
-};
+/* 탭바는 바닥에 붙어 움직이지 않는다. 시트는 그 위로 자란다.
+   접혔을 때 보이는 건 손잡이와 — 재생 중이면 — 미니 줄뿐이다. */
+function peekY() {
+  const tab = els.tabbar.offsetHeight;
+  document.documentElement.style.setProperty('--tabH', tab + 'px');
+  const playing = els.sheet.classList.contains('playing') && !SHEET.open;
+  const mini = playing ? els.psMini.offsetHeight + els.psProg.offsetHeight : 0;
+  const shown = els.psGrip.offsetHeight + mini;
+  const deep = document.body.classList.contains('deep');
+  return Math.max(0, innerHeight - (deep ? 0 : tab) - shown);
+}
 const setY = (y, live) => {
   els.sheet.classList.toggle('drag', !!live);
   els.sheet.style.setProperty('--ps-y', y + 'px');
 };
+/* 미니 줄이 펴지고 접히는 0.34초 동안 시트가 앉을 자리도 계속 바뀐다.
+   한 번만 재면 펴지기 전 높이로 굳어 버리므로, 다 펴질 때까지 따라 잰다. */
+function fitSheet() {
+  cancelAnimationFrame(fitSheet.raf);
+  const until = performance.now() + 460;
+  const tick = () => {
+    /* 손으로 끄는 중엔 비켜 주되, 루프는 살려 둔다 —
+       여기서 그냥 끝내면 손을 뗀 뒤 제자리를 못 찾는다 */
+    if (!els.sheet.classList.contains('drag')) setY(SHEET.open ? 0 : peekY());
+    if (performance.now() < until) fitSheet.raf = requestAnimationFrame(tick);
+  };
+  tick();
+}
 
 function openSheet() {
-  els.sheet.classList.remove('hidden');
   SHEET.open = true;
+  els.sheet.classList.remove('drag');
   els.sheet.classList.add('open');
-  setY(0);
   closeScript();
+  fitSheet();
   paint();
-}
-/* 재생이 시작되면 미니 한 줄만 올라온다 — 펼치는 건 손잡이를 끌 때다 */
-function showSheet() {
-  els.sheet.classList.remove('hidden');
-  SHEET.open = false;
-  els.sheet.classList.remove('open');
-  setY(peekY());
 }
 function closeSheet() {
   SHEET.open = false;
-  els.sheet.classList.remove('open');
-  setY(peekY());
+  els.sheet.classList.remove('drag', 'open');
   closeScript();
+  fitSheet();
 }
-/* 들을 게 있어야 시트가 올라온다 */
+/* 들을 게 있으면 미니 줄이 펴진다. 2뎁스에서는 덩어리째 내려간다. */
 function syncSheet() {
   const has = P.lines.length > 0 || state.streaming;
-  els.sheet.classList.toggle('hidden', !has);
-  if (!has) { SHEET.open = false; els.sheet.classList.remove('open'); return; }
-  setY(SHEET.open ? 0 : peekY());
+  els.sheet.classList.toggle('playing', has);
+  els.sheet.classList.toggle('down', DEEP.has(state.view));
+  if (!has && SHEET.open) { SHEET.open = false; els.sheet.classList.remove('open'); }
+  fitSheet();
 }
-window.__syncSheet = syncSheet;
+/* 재생이 시작되면 미니 줄만 펴진다 — 펼치는 건 손잡이를 끌 때다 */
+function showSheet() {
+  SHEET.open = false;
+  els.sheet.classList.remove('open');
+  els.sheet.classList.add('playing');
+  fitSheet();
+}
 
 els.miniPlay.onclick = e => { e.stopPropagation(); togglePlay(); };
 els.miniPrev.onclick = e => { e.stopPropagation(); playFrom(P.idx - 1); };
@@ -2653,33 +2650,35 @@ els.miniScript.onclick = e => { e.stopPropagation(); openSheet(); openScript(); 
 els.psMini.onclick = () => openSheet();
 els.psMini.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openSheet(); } };
 
-/* 손잡이 끌기 — 손가락을 따라오고, 절반을 넘기거나 던지면 그쪽으로 붙는다 */
+/* 손잡이 끌기 — 위로 올리면 펼쳐지고, 쓸어내리면 접힌다.
+   손가락을 그대로 따라오다가, 3분의 1을 넘기거나 던지면 그쪽으로 붙는다. */
 (() => {
-  let y0 = 0, base = 0, dy = 0, t0 = 0, on = false;
-  const TAKE = 0.32, FLICK = 0.45;   // 넘길 비율, 던지는 속도(px/ms)
+  let y0 = 0, base = 0, dy = 0, t0 = 0, on = false, moved = false;
+  const TAKE = 0.3, FLICK = 0.4;
 
   const down = e => {
-    on = true; dy = 0; t0 = performance.now();
+    on = true; moved = false; dy = 0; t0 = performance.now();
     y0 = e.clientY;
     base = SHEET.open ? 0 : peekY();
-    els.sheet.setPointerCapture?.(e.pointerId);
+    els.psGrip.setPointerCapture?.(e.pointerId);
   };
   const move = e => {
     if (!on) return;
     dy = e.clientY - y0;
-    const lo = 0, hi = peekY();
+    if (!moved && Math.abs(dy) < 4) return;
+    moved = true;
+    const hi = peekY();
     let y = base + dy;
-    // 끝을 넘어가면 고무줄처럼 덜 움직인다
-    if (y < lo) y = lo + (y - lo) * 0.3;
+    if (y < 0)  y = y * 0.3;                 // 끝을 넘어가면 고무줄처럼
     if (y > hi) y = hi + (y - hi) * 0.3;
     setY(y, true);
   };
   const up = () => {
     if (!on) return;
     on = false;
+    if (!moved) { SHEET.open ? closeSheet() : openSheet(); return; }
     const span = peekY() || 1;
     const speed = dy / Math.max(1, performance.now() - t0);
-    if (Math.abs(dy) < 6) { SHEET.open ? closeSheet() : openSheet(); return; }
     const goOpen = speed < -FLICK ? true
                  : speed > FLICK ? false
                  : (base + dy) < span * (1 - TAKE);
@@ -2689,7 +2688,7 @@ els.psMini.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preven
   addEventListener('pointermove', move);
   addEventListener('pointerup', up);
   addEventListener('pointercancel', up);
-  addEventListener('resize', () => { if (!SHEET.open) setY(peekY()); });
+  addEventListener('resize', fitSheet);
 })();
 els.prev.onclick = () => playFrom(P.idx - 1);
 els.next.onclick = () => playFrom(P.idx + 1);

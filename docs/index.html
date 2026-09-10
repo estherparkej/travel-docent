@@ -396,7 +396,7 @@
 
 <!-- ══════════ 재생 시트 ══════════ -->
 <!-- 손잡이를 끌어 미니와 전체를 오간다. 탭바는 늘 보인다. -->
-<div class="psheet hidden" id="playSheet" data-open="0">
+<div class="psheet" id="playSheet">
   <div class="ps-grip" id="psGrip"><span></span></div>
 
   <div class="ps-mini" id="psMini" role="button" tabindex="0">
@@ -409,7 +409,7 @@
       <button id="miniScript" class="ps-btn" aria-label="해설 보기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h13M4 12h13M4 17h8"/><path d="M17.5 15.5v5l4-2.5-4-2.5Z" fill="currentColor" stroke="none"/></svg></button>
     </span>
   </div>
-  <div class="ps-prog"><i id="miniBar"></i></div>
+  <div class="ps-prog" id="psProg"><i id="miniBar"></i></div>
 
   <div class="ps-full" id="psFull">
   <section class="view now" id="view-player">
@@ -502,10 +502,11 @@
     </div>
   </section>
   </div>
+
+  <!-- 탭바는 시트의 일부다 — 손잡이·미니 플레이어와 함께 움직인다 -->
 </div>
 
-
-<!-- ══════════ 플로팅 캡슐 내비 ══════════ -->
+<!-- 탭바는 늘 바닥에 고정 — 시트가 그 위로 자란다 -->
 <nav class="tabbar">
   <span class="tabink" id="tabInk" aria-hidden="true"></span>
   <button class="tab" data-view="home">
@@ -534,6 +535,8 @@
     <span>설정</span>
   </button>
 </nav>
+
+
 
 <!-- ══════════ API 키 — 바텀시트 ══════════ -->
 <div id="apiSheet" class="sheet hidden">

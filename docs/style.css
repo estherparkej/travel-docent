@@ -269,36 +269,39 @@ main{position:relative;min-height:0;overflow:hidden}
    원형 하나로 줄였다. 안에는 그 장소의 사진, 그 위에 옅은 막과 재생 표시.
    오른쪽 아래, 탭바 위에 뜬다. */
 /* ══════════ 재생 시트 ══════════
-   아이폰 '나의 찾기'처럼, 손잡이 달린 시트가 탭바 위로 올라온다.
-   접히면 미니 플레이어 한 줄, 끌어올리면 전체 플레이어. */
-:root{ --ps-mini:64px; }        /* 미니 한 줄 높이 */
+   아이폰 '나의 찾기'와 같은 구조 — 손잡이·미니 플레이어·탭바가
+   한 덩어리로 붙어 함께 오르내린다. 시트 바닥이 곧 화면 바닥이다. */
+:root{ --ps-mini:64px; }
 
 .psheet{
-  position:fixed;left:0;right:0;bottom:0;z-index:1095;
+  position:fixed;left:0;right:0;bottom:0;z-index:1098;
   height:100dvh;
-  /* 자리는 JS 가 재서 --ps-y 로 정한다 */
   transform:translate3d(0,var(--ps-y,100dvh),0);
-  border-radius:20px 20px 0 0;
-  background:rgba(255,255,255,.82);
-  backdrop-filter:blur(28px) saturate(1.8);
-  -webkit-backdrop-filter:blur(28px) saturate(1.8);
-  box-shadow:0 -6px 28px -8px rgba(0,0,0,.22);
+  border-radius:22px 22px 0 0;
+  background:rgba(255,255,255,.86);
+  backdrop-filter:blur(30px) saturate(1.8);
+  -webkit-backdrop-filter:blur(30px) saturate(1.8);
+  box-shadow:0 -1px 0 rgba(0,0,0,.06),0 -10px 34px -10px rgba(0,0,0,.2);
   display:flex;flex-direction:column;
-  will-change:transform;touch-action:none;
-  transition:transform .46s cubic-bezier(.32,.72,0,1);
+  will-change:transform;
+  transition:transform .5s cubic-bezier(.32,.72,0,1);
 }
 .psheet.drag{transition:none}
-.psheet.hidden{transform:translate3d(0,100dvh,0);pointer-events:none}
+/* 2뎁스에서는 통째로 내려간다 */
+.psheet.down{transform:translate3d(0,100dvh,0);pointer-events:none}
 
-/* 손잡이 — 끌어서 여닫는 곳 */
-.ps-grip{height:22px;display:grid;place-items:center;flex:none;cursor:grab}
-.ps-grip span{width:38px;height:5px;border-radius:99px;background:rgba(0,0,0,.2)}
+/* 손잡이 — 끌어서 여닫는 곳. 시트 어디를 잡아도 끌리지만 여기가 표시다. */
+.ps-grip{height:24px;display:grid;place-items:center;flex:none;
+  cursor:grab;touch-action:none}
+.ps-grip span{width:36px;height:5px;border-radius:99px;background:rgba(0,0,0,.18)}
 .ps-grip:active{cursor:grabbing}
 
-/* 미니 한 줄 — 첨부 이미지의 구성 */
+/* 미니 플레이어 — 재생 중일 때만 탭바 위에 한 줄 */
 .ps-mini{display:flex;align-items:center;gap:12px;flex:none;
-  height:var(--ps-mini);padding:0 var(--gap);cursor:pointer;
-  transition:opacity .18s ease,height .3s cubic-bezier(.32,.72,0,1)}
+  height:var(--ps-mini);padding:0 var(--gap);cursor:pointer;overflow:hidden;
+  transition:height .34s cubic-bezier(.32,.72,0,1),opacity .2s ease}
+.psheet:not(.playing) .ps-mini,
+.psheet.open .ps-mini{height:0;opacity:0;pointer-events:none}
 .ps-thumb{width:44px;height:44px;border-radius:10px;overflow:hidden;flex:none;
   background:var(--tint2)}
 .ps-thumb img{width:100%;height:100%;object-fit:cover;display:block}
@@ -315,24 +318,23 @@ main{position:relative;min-height:0;overflow:hidden}
 .ps-btn svg{width:21px;height:21px}
 .ps-play svg{width:25px;height:25px}
 .ps-btn:active{transform:scale(.9);background:var(--tint)}
+.ps-btn:disabled{opacity:.3}
 
-/* 얼마나 들었는지 — 미니 줄 아래 실선 */
+/* 얼마나 들었는지 — 미니 줄과 탭바 사이 실선 */
 .ps-prog{height:2px;margin:0 var(--gap);border-radius:2px;flex:none;
   background:rgba(0,0,0,.08);overflow:hidden;
-  transition:height .3s cubic-bezier(.32,.72,0,1),opacity .18s ease}
+  transition:height .34s cubic-bezier(.32,.72,0,1),opacity .2s ease}
 .ps-prog i{display:block;height:100%;width:0;background:var(--acc);
   transition:width .25s linear}
+.psheet:not(.playing) .ps-prog,
+.psheet.open .ps-prog{height:0;opacity:0}
 
-/* 펼쳤을 때 나오는 전체 플레이어 */
-.ps-full{flex:1;min-height:0;position:relative;
-  opacity:0;pointer-events:none;transition:opacity .2s ease}
+/* 펼쳤을 때 나오는 전체 플레이어 — 손잡이와 탭바 사이를 채운다 */
+/* 아래쪽 탭바 높이만큼은 가려지므로 그만큼 비워 둔다 */
+.ps-full{flex:1;min-height:0;position:relative;padding-bottom:var(--tabH,64px);
+  opacity:0;pointer-events:none;transition:opacity .22s ease}
 .psheet.open .ps-full{opacity:1;pointer-events:auto}
-/* 펼치면 미니 줄은 사라질 뿐 아니라 자리도 비워야 한다 —
-   투명하게만 두면 그만큼 사진 위가 흰 띠로 남는다 */
-.psheet.open .ps-mini{height:0;opacity:0;pointer-events:none;overflow:hidden}
-.psheet.open .ps-prog{height:0;margin-top:0;margin-bottom:0;opacity:0}
-.psheet.open{background:#FFF}
-/* 시트 안에서는 플레이어가 제 높이를 다 쓴다 */
+.psheet.open{background:#FFF;backdrop-filter:none;-webkit-backdrop-filter:none}
 .ps-full #view-player{position:absolute;inset:0;height:100%}
 .ps-full #view-player.hidden{display:block}
 
@@ -345,20 +347,20 @@ main{position:relative;min-height:0;overflow:hidden}
 
 /* ── 탭바 ──────────────────────────────────────────────── */
 /* ── 플로팅 캡슐 내비 ─────────────────────────────────── */
+/* 떠 있는 캡슐을 그만두고 바닥에 붙였다.
+   시트와 같은 바탕·흐림을 써서 손잡이부터 탭바까지 한 면으로 이어진다. */
 .tabbar{
-  position:fixed;left:50%;transform:translateX(-50%);
-  bottom:max(var(--navlift), var(--safe-b));z-index:1100;
+  position:fixed;left:0;right:0;bottom:0;z-index:1099;
   display:grid;grid-template-columns:repeat(5,1fr);
-  width:calc(100% - var(--gap)*2);max-width:var(--maxw);
-  /* 흰색을 92%로 덮으면 뒤가 안 비쳐 흐림이 무의미했다.
-     덜 덮고 더 흐리게 해야 뒤 내용이 은은하게 어른거린다. */
-  background:rgba(255,255,255,.66);
-  backdrop-filter:blur(26px) saturate(1.8);
-  -webkit-backdrop-filter:blur(26px) saturate(1.8);
-  border:1px solid rgba(255,255,255,.5);border-radius:999px;
-  box-shadow:0 8px 28px -8px rgba(0,0,0,.18),0 2px 6px rgba(0,0,0,.05);
-  padding:6px;
+  width:100%;padding:6px var(--gap) max(var(--safe-b), 8px);
+  background:rgba(255,255,255,.86);
+  backdrop-filter:blur(30px) saturate(1.8);
+  -webkit-backdrop-filter:blur(30px) saturate(1.8);
+  box-shadow:0 -1px 0 rgba(0,0,0,.05);
+  transition:transform .4s cubic-bezier(.32,.72,0,1),opacity .24s ease;
 }
+/* 2뎁스에서는 탭바도 시트와 함께 내려간다 */
+body.deep .tabbar{transform:translateY(100%);opacity:0;pointer-events:none}
 .tab{
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
   padding:7px 2px 6px;border-radius:999px;
@@ -1189,12 +1191,8 @@ input[type=range]:disabled{opacity:.4}
 
 /* 스크롤하는 동안에는 탭바가 살짝 물러난다.
    손이 화면을 훑는 중에는 길을 조금 비켜 주고, 멈추면 제자리로 돌아온다. */
-/* 2뎁스(상세)에서는 내비를 아래로 내린다 — 그 화면의 행동은 CTA 하나뿐이다 */
-body.deep .tabbar{transform:translateX(-50%) translateY(calc(100% + var(--safe-b) + 24px));
-  opacity:0;pointer-events:none}
+/* 2뎁스에서는 시트가 통째로 내려간다 (.psheet.down) */
 body.deep .pl-dock{padding-bottom:calc(var(--safe-b) + 14px)}
-.tabbar{transition:transform .34s var(--gentle),opacity .24s ease,box-shadow .32s var(--gentle)}
-.tabbar.shrink{transform:translateX(-50%) scale(.86)}
 
 /* ══════════ 장소 상세 ══════════
    사진 → 이름 → 요약 → 듣기. 위에서 아래로 한 번에 읽히게 세웠다. */
