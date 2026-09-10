@@ -2767,14 +2767,23 @@ els.psMini.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preven
   let y0 = 0, base = 0, dy = 0, t0 = 0, on = false, moved = false;
   const FLICK = 0.45;   // px/ms
 
-  /* 손잡이는 18px뿐이라 펼친 뒤에는 잡기 어렵다.
-     시트 위쪽 90px 안에서 시작한 세로 끌기를 모두 받는다. */
+  /* 펼친 뒤에는 시트 어디를 잡아도 끌어내릴 수 있다.
+     다만 제 일이 있는 것들은 비켜 준다 — 버튼, 해설 위치 막대,
+     옆으로 넘기는 사진, 그리고 아직 위로 더 올릴 게 남은 스크롤 영역. */
   const GRAB = 90;
+  const KEEP = '.ps-btn, .tab, button, a, input, select, .track, .rail, .modes, .seek';
   let x0 = 0, judged = false;
   const down = e => {
-    if (e.target.closest('.ps-btn, .tab, button, a, input')) return;
-    const top = els.sheet.getBoundingClientRect().top;
-    if (e.clientY - top > GRAB) return;
+    if (e.target.closest(KEEP)) return;
+    /* 접혀 있을 때는 위쪽만. 아래는 지도와 목록의 몫이다. */
+    if (SHEET.step < 2) {
+      const top = els.sheet.getBoundingClientRect().top;
+      if (e.clientY - top > GRAB) return;
+    } else {
+      /* 스크롤이 남아 있는 곳에서 시작했다면 먼저 그쪽을 읽게 둔다 */
+      const sc = e.target.closest('.transcript, .scroller, .ps-full [style*="overflow"]');
+      if (sc && sc.scrollTop > 2) return;
+    }
     on = true; moved = false; judged = false; dy = 0; t0 = performance.now();
     y0 = e.clientY; x0 = e.clientX;
     base = stepH(SHEET.step);
