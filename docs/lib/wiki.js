@@ -3,13 +3,43 @@
 
 const API = 'https://ko.wikipedia.org/w/api.php';
 
+/* 위키백과는 짧은 사이에 몰아치면 429로 막아 선다.
+   홈 한 화면에 카드가 스무 장이면 요청도 스무 개가 한꺼번에 나갔고,
+   막힌 요청만큼 썸네일과 한 줄 소개가 비어 보였다.
+   한 번에 넷까지만 내보내고, 막히면 잠깐 쉬었다 다시 묻는다. */
+const MAX_LIVE = 4;
+let live = 0;
+const queue = [];
+
+function slot() {
+  if (live < MAX_LIVE) { live += 1; return Promise.resolve(); }
+  return new Promise(go => queue.push(go));
+}
+function release() {
+  const go = queue.shift();
+  if (go) go();               // 자리를 그대로 넘긴다
+  else live -= 1;
+}
+const nap = ms => new Promise(r => setTimeout(r, ms));
+
 async function get(params) {
   const q = new URLSearchParams({
     ...params, format: 'json', formatversion: '2', origin: '*',
   });
-  const r = await fetch(`${API}?${q}`);
-  if (!r.ok) throw new Error('위키백과 ' + r.status);
-  return r.json();
+  const url = `${API}?${q}`;
+  await slot();
+  try {
+    for (let tries = 0; ; tries += 1) {
+      const r = await fetch(url);
+      if (r.ok) return await r.json();
+      // 429·503 은 '지금은 말고'라는 뜻이다. 세 번까지 기다렸다 다시 묻는다.
+      if ((r.status === 429 || r.status === 503) && tries < 3) {
+        await nap(500 * (tries + 1));
+        continue;
+      }
+      throw new Error('위키백과 ' + r.status);
+    }
+  } finally { release(); }
 }
 
 /* 같은 자리를 다시 물으면 그대로 돌려준다. 지도를 열 때 미리 받아 둘 수 있게 한다. */
@@ -62,9 +92,16 @@ export async function pageImage(title, size = 900) {
     const d = await get({ action: 'query', prop: 'pageimages', piprop: 'thumbnail',
       pithumbsize: size, titles: title });
     for (const p of d.query?.pages || [])
-      if (p.thumbnail?.source) return p.thumbnail.source;
+      if (realPhoto(p.thumbnail?.source)) return p.thumbnail.source;
   } catch (_) {}
   return '';
+}
+
+/* 위키백과는 사진이 없는 문서에 '사진이 없습니다' 안내 그림을 대표 이미지로 단다.
+   그걸 그대로 썸네일에 걸면 화면에 빈 액자만 늘어선다. 없는 셈 친다. */
+const PLACEHOLDER = /replace[_-]?this[_-]?image|no[_-]?free[_-]?image|question[_-]?book|nuvola|image[_-]?manquante|sin[_-]?imagen/i;
+export function realPhoto(url) {
+  return url && !PLACEHOLDER.test(url) ? url : '';
 }
 
 // 사진이 아닌 것 / 여러 장을 붙인 것
@@ -157,8 +194,23 @@ async function gatherOnce({ lat, lon, manual }) {
   // 검색은 관련도순, 좌표는 가까운 순으로 돌려준다
   pages.sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
 
+  /* 관련도만 믿으면 '경주 불국사'를 물었을 때 '경주 불국사 삼층석탑'이 먼저 온다.
+     이름이 같은 문서를 앞에 세우고, 없으면 물어본 이름 안에 들어 있는 쪽을 고른다. */
+  if (manual) {
+    const norm = x => x.replace(/\s*\([^)]*\)\s*$/, '').replace(/\s+/g, '');
+    const q = norm(manual);
+    const rank = pg => {
+      const t = norm(pg.title);
+      if (t === q) return 0;
+      if (t.length >= 2 && q.includes(t)) return 1;
+      return 2;
+    };
+    pages.sort((a, b) => rank(a) - rank(b) || (a.index ?? 0) - (b.index ?? 0));
+  }
+
   if (!pages.length)
-    return { place: manual || '', primary: '', image: '', sources: [], nearby: [], coord: null };
+    return { place: manual || '', primary: '', intro: '', image: '',
+             sources: [], nearby: [], coord: null };
 
   const primary = pages[0];
   const sources = [];
@@ -176,7 +228,9 @@ async function gatherOnce({ lat, lon, manual }) {
   return {
     place: primary.title,
     primary: primary.title,
-    image: primary.thumbnail?.source || '',
+    // 카드의 한 줄 소개도 여기서 나온다 — 따로 물으면 요청만 늘어난다
+    intro: forSpeech((primary.extract || '').trim()),
+    image: realPhoto(primary.thumbnail?.source || ''),
     sources,
     nearby: pages.slice(1, 6).map(x => x.title),
     coord: c ? { lat: c.lat, lon: c.lon } : null,
@@ -204,7 +258,7 @@ export async function thumbs(titles, size = 160) {
         titles: titles.slice(i, i + 50).join('|'),
       });
       for (const p of (d.query?.pages || [])) {
-        const u = p.thumbnail?.source || '';
+        const u = realPhoto(p.thumbnail?.source || '');
         thumbCache.set(p.title, u);
         if (u) out[p.title] = u;
       }

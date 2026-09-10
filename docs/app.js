@@ -34,7 +34,9 @@ function $(id) {
 }
 const els = {
   // 좌측 상단 상태 문구는 없앴다. 로딩은 버튼 스피너가 알려준다.
-  status: $('statusLabel') || document.createElement('span'), name: $('placeName'), addr: $('placeAddr'),
+  /* 좌측 상단 상태 문구는 화면에서 뺐지만, 문구 자체는 미니 플레이어가 가져다 쓴다.
+     화면에 없는 요소를 찾는 대신 담아 둘 자리만 만든다. */
+  status: document.createElement('span'), name: $('placeName'), addr: $('placeAddr'),
   chip: $('providerChip'),
   rail: $('rail'), dots: $('dots'), lower: document.querySelector('.lower'),
   times: $('times'),
@@ -50,7 +52,7 @@ const els = {
   viewer: $('viewer'), viewerImg: $('viewerImg'), viewerStage: $('viewerStage'),
   viewerCap: $('viewerCap'), viewerBg: $('viewerBg'),
   viewerCount: $('viewerCount'), viewerClose: $('viewerClose'),
-  heroWrap: $('heroWrap'), heroTrack: $('heroTrack'), heroDots: $('heroDots'),
+  heroWrap: $('heroWrap'), heroTrack: $('heroTrack'),
   krChips: $('krChips'), krList: $('krList'),
   wwChips: $('wwChips'), wwList: $('wwList'), toTop: $('toTop'),
   pickList: $('pickList'), nearShelf: $('nearShelf'), nearList: $('nearList'),
@@ -74,7 +76,7 @@ const els = {
   miniPlay: $('miniPlay'), miniBar: $('miniBar'),
   psProg: document.querySelector('.ps-prog'), tabbar: document.querySelector('.tabbar'),
   miniPrev: $('miniPrev'), miniNext: $('miniNext'), miniScript: $('miniScript'),
-  settings: $('settings'), lengthSeg: $('lengthSeg'), toneList: $('toneList'),
+  lengthSeg: $('lengthSeg'), toneList: $('toneList'),
   voiceSel: $('voiceSel'), preview: $('previewVoice'), voiceHint: $('voiceHint'),
   engineSeg: $('engineSeg'), quotaNote: $('quotaNote'), quotaTxt: $('quotaTxt'),
   deviceField: $('deviceField'), googleField: $('googleField'), gvoiceList: $('gvoiceList'),
@@ -98,6 +100,13 @@ const ICO = {
   tabPause: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8.4"/><rect x="9.3" y="8.6" width="2" height="6.8" rx=".9" fill="currentColor" stroke="none"/><rect x="12.7" y="8.6" width="2" height="6.8" rx=".9" fill="currentColor" stroke="none"/></svg>',
   tabSpin: '<svg class="spin" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.4" stroke="currentColor" stroke-opacity=".28" stroke-width="1.8"/><path d="M20.4 12A8.4 8.4 0 0 0 12 3.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
 };
+
+const PIN_SM = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 21s7-5.4 7-11a7 7 0 1 0-14 0c0 5.6 7 11 7 11Z"/><circle cx="12" cy="10" r="2.4"/></svg>';
+/* 셀 오른쪽 표시 — 눌러도 소리가 나지 않고 상세로 넘어가므로 재생 모양을 쓰지 않는다.
+   버튼이 아니라 '이 줄은 어딘가로 이어진다'는 표시다. */
+const GO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
+         + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+         + '<path d="m9.5 5.5 6.5 6.5-6.5 6.5"/></svg>';
 
 /* ── 설정값 ──────────────────────────────────────────────── */
 const prefs = Object.assign(
@@ -756,8 +765,9 @@ function highlight() {
 }
 
 /* 상태가 어디서 바뀌든 아이콘이 늘 따라오도록 항상 그린다.
-   재생 중에만 그리면, 다른 경로로 멈췄을 때 아이콘이 옛 상태로 남는다. */
-setInterval(paint, 250);
+   재생 중에만 그리면, 다른 경로로 멈췄을 때 아이콘이 옛 상태로 남는다.
+   다만 화면이 덮여 있을 때까지 4분의 1초마다 그릴 이유는 없다. */
+setInterval(() => { if (!document.hidden) paint(); }, 250);
 
 // 직접 스크롤하면 4초간 자동 따라가기를 멈춘다
 els.transcript.addEventListener('touchstart', () => { state.followT = Date.now() + 4000; }, { passive: true });
@@ -907,7 +917,7 @@ function setChip(p) {
     { claude: 'Claude 해설', gemini: 'AI 도슨트', wiki: '위키백과 낭독' }[p] || '여행 도슨트';
 }
 
-const PIN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M12 21.5s7.2-5.7 7.2-11.4a7.2 7.2 0 1 0-14.4 0c0 5.7 7.2 11.4 7.2 11.4Z"/><circle cx="12" cy="10" r="2.4"/></svg>';
+const PIN = '<svg viewBox="-0.12 -0.12 24.24 24.24" fill="none" stroke="currentColor" stroke-width="1.212"><path d="M12 21.5s7.2-5.7 7.2-11.4a7.2 7.2 0 1 0-14.4 0c0 5.7 7.2 11.4 7.2 11.4Z"/><circle cx="12" cy="10" r="2.4"/></svg>';
 
 function setArt(url) {
   state.image = url;
@@ -1011,13 +1021,13 @@ function renderLog() {
   els.logList.innerHTML = list.map((_, i) => `
     <li><span class="n">${String(list.length - i).padStart(2, '0')}</span>
         <span class="t"></span>
-        <button class="go" aria-label="다시 듣기">${ICO.play}</button></li>`).join('');
+        <button class="go" aria-label="자세히 보기">${GO}</button></li>`).join('');
+  /* 예전에는 어느 줄을 눌러도 '지금 보고 있는 곳'이 다시 재생됐다.
+     누른 줄의 장소를 열어야 한다. 다른 목록과 같은 자리로 간다. */
   [...els.logList.children].forEach((li, i) => {
-    li.querySelector('.t').textContent = list[i];
-    li.querySelector('.go').onclick = () => {
-      showSheet();
-      narrate();
-    };
+    const name = list[i];
+    li.querySelector('.t').textContent = name;
+    li.onclick = () => playPlace(name);
   });
 }
 renderLog();
@@ -1098,42 +1108,63 @@ const previewCache = new Map();
 
 /* 카드 한 줄 소개 — 제목 아래에 다시 제목을 쓰지 않는다.
    '불국사는 대한민국 경상북도 …' 대신 '경상북도 경주시에 있는 호국사찰이에요'. */
+/* 제목을 지울 때 글자 사이의 띄어쓰기는 있어도 되고 없어도 된다.
+   문서 제목은 '남산골한옥마을'인데 본문은 '남산골 한옥마을은'으로 시작하고,
+   '전쟁기념관 (대한민국)'처럼 괄호가 달린 제목도 있다. 둘 다 지워야 한다. */
+/* 제목을 지울 때 글자 사이의 띄어쓰기는 있어도 되고 없어도 된다.
+   문서 제목은 '남산골한옥마을'인데 본문은 '남산골 한옥마을은'으로 시작하고,
+   '전쟁기념관 (대한민국)'처럼 괄호가 달린 제목도, '수원 화성 혹은 화성은'처럼
+   딴 이름을 함께 적은 문장도 있다. 셋 다 지워야 제목이 두 번 나오지 않는다. */
+function headRe(title) {
+  const plain = String(title).replace(/\s*\([^)]*\)\s*$/, '').trim();
+  const loose = t => [...t.replace(/\s+/g, '')]
+    .map(ch => ch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s*');
+  const names = [];
+  if (plain) names.push(loose(plain));
+  /* '공주 공북루'로 실린 문서가 본문은 '공북루는'으로 시작하기도 한다.
+     앞의 지역 이름을 뗀 뒷말도 같은 이름으로 본다. */
+  const tail = plain.split(/\s+/).pop() || '';
+  if (tail.length >= 2 && tail !== plain) names.push(loose(tail));
+  if (!names.length) return null;
+  return new RegExp('^(?:' + names.join('|') + ')'
+    + '(?:\\s*(?:혹은|또는)\\s*[가-힣A-Za-z0-9 ]{1,14}?)?\\s*(?:은|는|이|가)\\s*');
+}
+
 function blurb(title, text, max = 40) {
   let t = llm.soften(wiki.forSpeech(text || '')).replace(/\s+/g, ' ').trim();
   if (!t) return '';
-  const esc0 = title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  t = t.replace(new RegExp('^' + esc0 + '\\s*(?:은|는|이|가)\\s*'), '');
+  // 괄호 설명은 한 줄짜리 소개에 들어갈 자리가 없다.
+  // 제목을 지우기 전에 걷어내야 '에펠탑(프랑스어: …)은' 같은 문장도 걸린다.
+  t = t.replace(/\s*\([^)]*\)/g, '').replace(/\s{2,}/g, ' ').trim();
+  const re = headRe(title);
+  if (re) t = t.replace(re, '');
   t = t.split(/(?<=[.!?])\s/)[0];
-  /* '종로구 사직로에 있는'까지 적으면 한 줄에 안 들어간다 — 큰 단위까지만 */
-  t = t.replace(/([가-힣]+(?:시|도|구|군))\s+[가-힣0-9]+(?:로|길|동|가|리)\s*\d*(?:번지)?에\s*있는/, '$1에 있는');
-  if (t.length <= max) return t;
-  const cut = t.lastIndexOf(' ', max);
-  return (cut > 20 ? t.slice(0, cut) : t.slice(0, max)) + '…';
+  /* '종로구 사직로 29번지에 있는'까지 적으면 한 줄에 안 들어간다 — 큰 단위까지만 */
+  t = t.replace(/([가-힣]+(?:시|도|구|군))\s+[가-힣0-9]+(?:로|길|동|가|리)\s*[\d-]*(?:번지)?(?:\s*[가-힣0-9]+)?\s*(?:에|에서)\s*(있는|위치한|자리한)/,
+                (m, big) => big + '에 있는');
+  if (t.length > max) {
+    const cut = t.lastIndexOf(' ', max);
+    t = (cut > 20 ? t.slice(0, cut) : t.slice(0, max)) + '…';
+  }
+  // 자르다 괄호가 열리기만 하면 문장이 부서져 보인다
+  return t.replace(/\s*\([^)]*$/, '').trim();
 }
 
+/* 카드 한 장에 검색·사진·본문을 따로 물으면 왕복이 세 번이다.
+   스무 장이면 예순 번이라 위키백과가 429로 막아 섰고, 그래서 썸네일이
+   비어 보였다. 누를 때를 대비해 어차피 받아 두는 gather 하나면 족하다. */
 function preview(place) {
   if (previewCache.has(place)) return previewCache.get(place);
-  const job = (async () => {
-    try {
-      const titles = await wiki.search(place, 1);
-      const title = titles[0] || place;
-      const [image, ex] = await Promise.all([
-        wiki.pageImage(title, 900),
-        wiki.extracts([title], true, 160),
-      ]);
-      return { place: title, image, summary: blurb(title, ex[title] || '') };
-    } catch (_) { return { place, image: '', summary: '' }; }
-  })();
+  const job = wiki.gather({ manual: place })
+    .then(d => ({
+      place: d.place || place,
+      image: d.image || '',
+      summary: blurb(d.place || place, d.intro || d.sources?.[0]?.text || ''),
+    }))
+    .catch(() => ({ place, image: '', summary: '' }));
   previewCache.set(place, job);
   return job;
 }
-
-const PIN_SM = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 21s7-5.4 7-11a7 7 0 1 0-14 0c0 5.6 7 11 7 11Z"/><circle cx="12" cy="10" r="2.4"/></svg>';
-/* 셀 오른쪽 표시 — 눌러도 소리가 나지 않고 상세로 넘어가므로 재생 모양을 쓰지 않는다.
-   버튼이 아니라 '이 줄은 어딘가로 이어진다'는 표시다. */
-const GO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
-         + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
-         + '<path d="m9.5 5.5 6.5 6.5-6.5 6.5"/></svg>';
 
 function cardHTML(place, sub) {
   return `<button class="card" data-place="${place}">
@@ -1155,10 +1186,8 @@ function fillRanked(host, places) {
 
 function fillCards(host, places, subs) {
   host.innerHTML = places.map((p, i) => cardHTML(p, subs && subs[i])).join('');
-  /* 화면에 보이는 카드는 모두 미리 받아 둔다.
-     한 카드에 한 번의 요청이고, 받아 둔 것은 캐시에 남아 다시 부르지 않는다.
-     누르는 순간 자료를 기다릴 일이 없어진다. */
-  places.slice(0, 8).forEach(p => wiki.gather({ manual: p }).catch(() => {}));
+  /* 미리 받아 두는 일은 아래 preview 가 겸한다 — 같은 gather 한 번이라
+     누르는 순간 기다릴 일이 없으면서 요청도 늘지 않는다. */
   [...host.children].forEach(btn => {
     const name = btn.dataset.place;
     btn.onclick = () => playPlace(name);
@@ -1370,7 +1399,9 @@ function buildRegion(data, chipHost, listHost) {
 let homeReady = false;
 /* 들었던 곳 여섯 개와 '더보기'. 홈에서 바로 이어 듣게 한다. */
 function renderPlayed() {
-  const list = state.heard.slice().reverse().slice(0, 6);
+  /* 같은 곳을 두 번 들으면 기록에도 두 줄이 남는다. 기록은 그대로 두되,
+     '이어 듣기' 줄에는 한 곳이 한 번만 서야 한다. */
+  const list = [...new Set(state.heard.slice().reverse())].slice(0, 6);
   if (!list.length) { els.playedShelf.classList.add('hidden'); return; }
   els.playedShelf.classList.remove('hidden');
   /* 원 둘레에 어디까지 들었는지 그린다.
@@ -1884,8 +1915,9 @@ function runTyping() {
 }
 
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) stopTyping();
-  else if (state.view === 'home') runTyping();
+  /* 덮여 있는 동안 글자와 사진이 혼자 돌아가면 배터리만 축난다 */
+  if (document.hidden) { stopTyping(); stopHero(); return; }
+  if (state.view === 'home') { runTyping(); if (homeReady) startHero(); }
 });
 $('playerSearch').onclick = () => openSearch('player');
 $('histSearch').onclick = () => openSearch('history');
@@ -2788,10 +2820,13 @@ els.psMini.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preven
      다만 제 일이 있는 것들은 비켜 준다 — 버튼, 해설 위치 막대,
      옆으로 넘기는 사진, 그리고 아직 위로 더 올릴 게 남은 스크롤 영역. */
   const GRAB = 90;
-  const KEEP = '.ps-btn, .tab, button, a, input, select, .track, .rail, .modes, .seek';
-  let x0 = 0, judged = false;
+  /* 사진 줄(.rail)은 비켜 주지 않는다 — 옆으로 미는지 아래로 끄는지는
+     아래에서 가로·세로를 견주어 가리므로, 사진 위에서도 시트를 내릴 수 있다. */
+  const KEEP = '.ps-btn, .tab, button, a, input, select, .track, .modes, .seek';
+  let x0 = 0, judged = false, from = null;
   const down = e => {
     if (e.target.closest(KEEP)) return;
+    from = e.target;
     /* 접혀 있을 때는 위쪽만. 아래는 지도와 목록의 몫이다. */
     if (SHEET.step < 2) {
       const top = els.sheet.getBoundingClientRect().top;
@@ -2827,7 +2862,12 @@ els.psMini.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preven
     on = false;
     SHEET.dragged = moved;
     setTimeout(() => { SHEET.dragged = false; }, 0);
-    if (!moved) { goStep(SHEET.step === 2 ? 1 : SHEET.step + 1); return; }
+    /* 톡 치기는 손잡이에서만 받는다.
+       펼친 화면 아무 데나 눌렀다고 접히면, 글을 읽다 손이 닿기만 해도 닫힌다. */
+    if (!moved) {
+      if (from && from.closest('.ps-grip')) goStep(SHEET.step === 2 ? 1 : SHEET.step + 1);
+      return;
+    }
 
     const h = base - dy;
     const speed = -dy / Math.max(1, performance.now() - t0);   // 위로가 +
@@ -3533,9 +3573,9 @@ function fillSummary(data) {
   const el = $('plSummary');
   const raw = (data.sources?.[0]?.text || '').replace(/\s+/g, ' ').trim();
   if (!raw) { el.textContent = '아직 자료가 없어요'; return; }
-  /* 제목이 바로 위에 있는데 문장마다 '불국사는'으로 시작하면 지겹다 */
-  const name = data.place || '';
-  const dup = name && new RegExp('^' + name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*(?:은|는|이|가)\\s*');
+  /* 제목이 바로 위에 붙어 있는데 '공주 공산성은'으로 다시 시작하면 겹쳐 읽힌다.
+     문서 이름과 화면에 적힌 이름이 다를 수 있어 둘 다 지운다. */
+  const dups = [headRe(data.place || ''), headRe(PL.name || '')].filter(Boolean);
   const lh = parseFloat(getComputedStyle(el).lineHeight) || 21;
   const cap = lh * SUM_LINES + 2;
 
@@ -3543,7 +3583,7 @@ function fillSummary(data) {
   let out = '';
   for (const line of raw.split(/(?<=[.!?])\s+/)) {
     let t = tidy(line);
-    if (out && dup) t = t.replace(dup, '');
+    for (const d of dups) t = t.replace(d, '');
     if (!t) continue;
     const next = out ? `${out} ${t}` : t;
     el.textContent = next;

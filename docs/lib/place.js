@@ -8,7 +8,7 @@
    실제 앱 로고는 상표라 앱 안에 넣지 않았다. 색과 글자만으로도 알아볼 수 있다. */
 /* 지도 앱 표시 — 실제 로고는 상표라 쓰지 못한다.
    각 서비스의 색에, 그 앱이 하는 일을 나타내는 그림을 얹었다. */
-const PIN  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" '
+const PIN  = '<svg viewBox="-0.06 -0.06 24.12 24.12" fill="none" stroke="currentColor" stroke-width="2.111" '
            + 'stroke-linecap="round" stroke-linejoin="round">'
            + '<path d="M12 21c-4.4-4.6-6.6-8-6.6-10.4a6.6 6.6 0 1 1 13.2 0C18.6 13 16.4 16.4 12 21Z"/>'
            + '<circle cx="12" cy="10.4" r="2.4"/></svg>';

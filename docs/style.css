@@ -239,7 +239,7 @@ main{position:relative;min-height:0;overflow:hidden}
 
 /* ── 해설 / 지나온 길 ──────────────────────────────────── */
 .sheetview{grid-template-rows:auto minmax(0,1fr);background:transparent}
-.scroller,.transcript{overflow-y:auto;-webkit-overflow-scrolling:touch;
+.scroller,.transcript{overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;
   padding:4px var(--gap) calc(var(--navclear) + 8px)}
 .transcript .sent{
   display:block;width:100%;text-align:left;
@@ -262,8 +262,9 @@ main{position:relative;min-height:0;overflow:hidden}
 .log .n{font-size:var(--fs-xs);color:var(--dim2);font-variant-numeric:tabular-nums;width:20px}
 .log .t{font-size:var(--fs-md);font-weight:600;word-break:keep-all;overflow:hidden;
   text-overflow:ellipsis;white-space:nowrap}
-.log .go{width:36px;height:36px;padding:6px;border-radius:50%;color:var(--acc-deep);display:grid;place-items:center;flex:none;
-  background:rgba(0,123,255,.12)}
+.log .go{width:24px;height:24px;border:0;padding:0;background:none;
+  color:var(--dim2);display:grid;place-items:center;flex:none}
+.log .go svg{width:24px;height:24px}
 .log .go:active{}
 
 /* ── 미니 플레이어 ─────────────────────────────────────── */
@@ -275,6 +276,9 @@ main{position:relative;min-height:0;overflow:hidden}
    접히면 좌우·아래에 여백을 두고 떠 있고, 손잡이를 올리면
    그 여백이 0 으로 줄며 화면을 꽉 채운다. --ps-t 가 그 진행도(0~1). */
 :root{ --ps-mini:64px; --ps-grip:15px; }
+/* 재생 중에는 시트에 미니 줄이 한 겹 더 붙는다.
+   목록의 아래 여백도 그만큼 늘려야 마지막 줄이 시트에 가려지지 않는다. */
+body.listening{--navclear:calc(var(--navh) + var(--ps-mini) + max(var(--navlift), var(--safe-b)) + 12px)}
 
 .psheet{
   --ps-t:0;                                  /* 0 접힘 · 1 펼침 */
@@ -295,6 +299,9 @@ main{position:relative;min-height:0;overflow:hidden}
   display:flex;flex-direction:column;
   /* 끌 때 글자가 선택되면 손을 뗄 때까지 파랗게 남는다 */
   user-select:none;-webkit-user-select:none;
+  /* 시트 안에서 끝까지 스크롤해도 그 힘이 뒤 화면으로 새지 않는다.
+     새어 나가면 브라우저가 고무줄을 당기며 끌던 손가락을 가로챈다. */
+  overscroll-behavior:contain;
   transform:translate3d(0,0,0) scale(var(--ps-s,1));
   transform-origin:50% 100%;
   will-change:height;
@@ -341,8 +348,8 @@ main{position:relative;min-height:0;overflow:hidden}
 .ps-btn{width:38px;height:38px;border:0;background:none;padding:0;cursor:pointer;
   display:grid;place-items:center;color:var(--ink);border-radius:50%;
   transition:transform var(--dur) var(--gentle),background var(--dur) var(--gentle)}
-.ps-btn svg{width:21px;height:21px}
-.ps-play svg{width:25px;height:25px}
+.ps-btn svg{width:24px;height:24px}
+.ps-play svg{width:24px;height:24px}
 .ps-btn:active{transform:scale(.9);background:var(--tint)}
 .ps-btn:disabled{opacity:.3}
 
@@ -575,6 +582,7 @@ input[type=range]:disabled{opacity:.4}
   .peek{display:none}
   .dots{margin-bottom:12px}
   :root{--navclear:calc(var(--navh) + var(--navlift) + 10px + var(--safe-b))}
+  body.listening{--navclear:calc(var(--navh) + var(--ps-mini) + var(--navlift) + 10px + var(--safe-b))}
 }
 
 /* ══════════ 홈 · 검색 공통 ══════════ */
@@ -586,7 +594,7 @@ input[type=range]:disabled{opacity:.4}
 .scroller::-webkit-scrollbar,.transcript::-webkit-scrollbar,
 .rowscroll::-webkit-scrollbar,.rail::-webkit-scrollbar{display:none;width:0;height:0}
 
-.scroller{overflow-y:auto;-webkit-overflow-scrolling:touch;
+.scroller{overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;
   padding:calc(var(--safe-t) + 8px) var(--gap) calc(var(--navclear) + 8px)}
 .pagehead{padding:12px 0 20px}
 .pagehead h1{font-size:var(--fs-title);font-weight:700;line-height:var(--lh-tight);
@@ -690,7 +698,7 @@ input[type=range]:disabled{opacity:.4}
 .totop-wrap{display:flex;justify-content:center;margin:64px 0}
 .totop{width:48px;height:48px;border-radius:50%;display:grid;place-items:center;
   background:var(--tint);color:var(--dim);flex:none}
-.totop svg{width:22px;height:22px}
+.totop svg{width:24px;height:24px}
 .totop:active{background:var(--tint2);transform:scale(.96)}
 
 /* 가로 스크롤 줄 */
@@ -722,9 +730,9 @@ input[type=range]:disabled{opacity:.4}
 .card .meta em{display:block;font-style:normal;font-size:var(--fs-xs);color:var(--dim);
   margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* 동그란 판을 깔면 누르는 버튼으로 읽힌다 — 표시일 뿐이므로 선만 남긴다 */
-.card .go{width:20px;height:20px;flex:none;
+.card .go{width:24px;height:24px;flex:none;
   display:grid;place-items:center;color:var(--dim2)}
-.card .go svg{width:18px;height:18px}
+.card .go svg{width:24px;height:24px}
 
 /* ══════════ 검색 ══════════ */
 /* 검색 필드 — 스크롤 흐름 안, 가까운 도슨트 바로 위 */
@@ -1065,7 +1073,7 @@ input[type=range]:disabled{opacity:.4}
   height:56px;box-sizing:border-box;
   background:var(--tint);color:#7C7C82;text-align:left;
   cursor:pointer;transition:background var(--dur) var(--gentle),transform var(--dur) var(--gentle)}
-.fakesearch svg{width:23px;height:23px;flex:0 0 auto;color:var(--ink);stroke-width:2.1}
+.fakesearch svg{width:24px;height:24px;flex:0 0 auto;color:var(--ink);stroke-width:2.1}
 .fakesearch:active{transform:scale(.985);background:var(--tint2)}
 
 /* 제목 옆에 붙는 더보기 */
@@ -1085,7 +1093,7 @@ input[type=range]:disabled{opacity:.4}
 .headbtn{border:0;background:none;padding:0;width:36px;height:36px;
   display:grid;place-items:center;color:var(--ink);cursor:pointer;
   transition:transform var(--dur) var(--gentle),background var(--dur) var(--gentle)}
-.headbtn svg{width:22px;height:22px}
+.headbtn svg{width:24px;height:24px}
 .headbtn:active{transform:scale(.9)}
 /* 플레이어는 헤더가 없어 사진 위에 띄운다 */
 .headbtn.floating{position:absolute;top:calc(var(--safe-t) + 10px);right:12px;z-index:3;
