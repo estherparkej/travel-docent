@@ -2747,7 +2747,10 @@ const showSheet  = () => goStep(1);
 function syncSheet() {
   const has = P.lines.length > 0 || state.streaming;
   els.sheet.classList.toggle('playing', has);
-  els.sheet.classList.toggle('down', DEEP.has(state.view));
+  document.body.classList.toggle('listening', has);
+  /* 2뎁스에서는 시트를 내리지만, 듣는 중이라면 내리지 않는다.
+     내려 버리면 재생을 시작한 그 화면에서 정작 멈출 수가 없다. */
+  els.sheet.classList.toggle('down', DEEP.has(state.view) && !has);
   if (!has && SHEET.step === 2) SHEET.step = 1;
   applyStep();
   fitSheet();
@@ -3385,6 +3388,8 @@ async function openPlace(name) {
   $('plSummary').textContent = '요약하고 있어요';
   $('plStory').textContent = '';
   $('plImg').removeAttribute('src');
+  $('plRail').innerHTML = ''; $('plDots').innerHTML = '';
+  plShots = []; plAt = 0;
   $('plDistWrap').hidden = true;
   for (const id of ['plGeoSec', 'plTrendSec', 'plNearSec']) $(id).classList.add('hidden');
   markLiked();
@@ -3417,6 +3422,7 @@ async function openPlace(name) {
   if (data) {
     if (data.coord) PL.coord = data.coord;
     if (data.image) $('plImg').src = data.image;
+    fillShots(data.place || name, data.sources.map(x => x.title), data.image, seq);
     $('plName').textContent = data.place || name;
     /* '요새'보다 '산성'이 낫다 — 백과사전 첫 문장의 정의어가 가장 정확하다 */
     if (!PL.kindFixed) {
@@ -3708,13 +3714,58 @@ $('plBack').onclick = () => goto(PL.back || 'home');
   addEventListener('touchend', finish, { passive: true });
   addEventListener('touchcancel', finish, { passive: true });
 })();
-$('plHero').onclick = () => {
-  const url = $('plImg').getAttribute('src');
-  if (!url) return;
-  vwList = [{ url, title: PL.name }];
-  openViewer(0);
+/* ── 상세 사진 슬라이드 ──────────────────────────────────
+   여행 사진첩처럼 여덟 장 이상을 옆으로 넘겨 본다.
+   위키 사진은 도면·현판·안내판이 섞여 여행 사진으로는 아쉽다.
+   사람이 찍은 풍경 쪽(Pexels)을 앞에 세우고 모자란 만큼만 위키로 채운다. */
+let plShots = [], plAt = 0;
+
+function drawShots(list) {
+  plShots = list; plAt = 0;
+  const rail = $('plRail'), dots = $('plDots');
+  rail.innerHTML = list.map((s, i) =>
+    `<div class="pl-shot" data-i="${i}"><img src="${s.url}" alt="" loading="${i < 2 ? 'eager' : 'lazy'}"></div>`).join('');
+  dots.innerHTML = list.length > 1
+    ? list.map((_, i) => `<i class="${i ? '' : 'on'}"></i>`).join('') : '';
+  rail.scrollLeft = 0;
+  [...rail.children].forEach(el => el.onclick = () => {
+    vwList = plShots.map(x => ({ url: x.url, title: x.title || PL.name }));
+    openViewer(+el.dataset.i);
+  });
+}
+$('plRail').addEventListener('scroll', () => {
+  const rail = $('plRail');
+  const i = Math.round(rail.scrollLeft / Math.max(1, rail.clientWidth));
+  if (i === plAt) return;
+  plAt = i;
+  [...$('plDots').children].forEach((d, k) => d.classList.toggle('on', k === i));
+}, { passive: true });
+
+/* 여행 사진처럼 보이는 것만 남긴다. 위키에는 도면과 문서 스캔이 많다. */
+const NOT_A_VIEW = /지도|map|plan|도면|평면|배치도|문양|현판|비석|탁본|문서|고문서|장서|기록|도장|인장|초상|영정|초안|scan|diagram|drawing|logo|seal|coat.?of.?arms|flag/i;
+async function fillShots(name, titles, cover, seq) {
+  const wanted = 8;
+  const [stock, gal] = await Promise.all([
+    photos.pexels(`${name} landmark travel`, 8).catch(() => []),
+    wiki.gallery(titles, 16).catch(() => []),
+  ]);
+  if (seq !== PL.seq) return;
+  const seen = new Set(); const out = [];
+  const add = (url, title) => {
+    if (!url || seen.has(url) || out.length >= 10) return;
+    seen.add(url); out.push({ url, title });
+  };
+  for (const x of stock) add(x.url, x.title);            // 사람이 찍은 풍경 먼저
+  add(cover, name);                                       // 대표 사진
+  for (const x of gal) if (!NOT_A_VIEW.test(x.title || '')) add(x.url, x.title);
+  if (out.length < wanted) for (const x of gal) add(x.url, x.title);  // 그래도 모자라면
+  if (out.length) drawShots(out);
+}
+const goListen = () => {
+  if (!PL.name) return;
+  startNarration(PL.name);
+  openSheet();          // 눌러서 시작했으니 플레이어를 바로 보여 준다
 };
-const goListen = () => { if (PL.name) startNarration(PL.name); };
 $('plCta').onclick = goListen;
 $('plCta2').onclick = goListen;
 
